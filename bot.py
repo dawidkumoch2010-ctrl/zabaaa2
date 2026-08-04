@@ -215,9 +215,12 @@ async def dashboard(ctx):
 @bot.command()
 async def acc(ctx):
     target = discord.utils.get(ctx.guild.categories, name="『ETAP 2』")
+    role_ticket = discord.utils.get(ctx.guild.roles, name="Ticket")
+    role_mention = role_ticket.mention if role_ticket else "@Ticket"
+    
     if target and "🎫-" in ctx.channel.name:
         await ctx.channel.edit(category=target)
-        await ctx.send("🎉 **ETAP 2!** Zarząd oraz ranga Ticket nadal widzą ten kanał.")
+        await ctx.send(f"Etap 2 {role_mention} jak ktoś będzie miał czas to ci odpisze w sprawie duel wtedy udaj sie na kanal <#1494791287533076603> lub <#1494791290569621685>")
 
 @bot.command()
 async def final(ctx):
@@ -272,15 +275,11 @@ def run_flask():
 
 # --- URUCHOMIENIE APLIKACJI ---
 if __name__ == "__main__":
-    # Pobieramy token ze zmiennych środowiskowych z panelu Render
     TOKEN = os.environ.get("DISCORD_TOKEN")
     
     if not TOKEN:
         print("❌ BŁĄD: Nie znaleziono zmiennej DISCORD_TOKEN w ustawieniach Rendera!")
     else:
-        # Uruchomienie serwera WWW (Flask) w osobnym wątku (dla statusu 200 na Renderze)
         t = threading.Thread(target=run_flask)
         t.start()
-        
-        # Uruchomienie bota Discord w głównym wątku
         bot.run(TOKEN)
