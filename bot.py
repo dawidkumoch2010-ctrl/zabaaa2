@@ -44,7 +44,7 @@ async def send_log(guild, message):
 class TicketView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v36")
+    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v37")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         cat = discord.utils.get(guild.categories, name="『ETAP 1』")
@@ -72,7 +72,7 @@ class TicketView(discord.ui.View):
 class VerifyView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v36")
+    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v37")
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         role = discord.utils.get(interaction.guild.roles, name="║ do rekru")
         if role: await interaction.user.add_roles(role)
@@ -83,7 +83,7 @@ class AdminDashboard(discord.ui.View):
     
     @discord.ui.select(
         placeholder="Zarządzaj gildią...",
-        custom_id="persistent:admin_v36",
+        custom_id="persistent:admin_v37",
         options=[
             discord.SelectOption(label="BUDUJ WSZYSTKO (FULL SETUP)", value="setup", emoji="🏗️"),
             discord.SelectOption(label="Wyślij Weryfikację", value="ver", emoji="🛡️"),
@@ -175,7 +175,7 @@ class AdminDashboard(discord.ui.View):
             await guild.create_text_channel("📑-logi", category=c_a, overwrites=p_logs)
             await guild.create_text_channel("⚙-panel", category=c_a, overwrites=p_logs)
             
-            await interaction.followup.send("✅ System zbudowany bez archiwum!", ephemeral=True)
+            await interaction.followup.send("✅ System zbudowany pomyślnie!", ephemeral=True)
 
         elif select.values[0] == "ver": await interaction.channel.send(embed=discord.Embed(title="🛡️ WERYFIKACJA", color=0x2ecc71), view=VerifyView())
         elif select.values[0] == "tick": await interaction.channel.send(embed=discord.Embed(title="🎫 REKRUTACJA", color=0x3498db), view=TicketView())
@@ -215,7 +215,7 @@ async def acc(ctx):
             if r_cz: await member.add_roles(r_cz)
             if r_re: await member.remove_roles(r_re)
 
-        # Zbieranie historii wiadomości z kanału przed jego usunięciem
+        # Pobieranie historii wiadomości z kanału
         history_messages = []
         async for message in ctx.channel.history(limit=100, oldest_first=True):
             time_str = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
@@ -223,22 +223,42 @@ async def acc(ctx):
         
         transcript_text = "\n".join(history_messages)
         if len(transcript_text) > 1900:
-            transcript_text = transcript_text[-1900:] # Ograniczenie długości wiadomości na PW
+            transcript_text = transcript_text[-1900:]
 
-        # Wysłanie historii na PW do użytkownika, jeśli został znaleziony
-        if member:
-            try:
-                await member.send(f"📜 **Historia Twojego ticketa z serwisu {ctx.guild.name}:**\n```text\n{transcript_text}\n```")
-            except discord.Forbidden:
-            # Użytkownik ma zablokowane wiadomości prywatne
-                pass
+        # Wysłanie historii na PW do osoby wpisującej komendę (!acc)
+        try:
+            await ctx.author.send(f"📜 **Historia zaakceptowanego ticketa ({ctx.channel.name}):**\n```text\n{transcript_text}\n```")
+        except discord.Forbidden:
+            pass
 
         # Usunięcie kanału ticketa
         await ctx.channel.delete()
 
 @bot.command()
 async def odrz(ctx):
-    if "🎫-" in ctx.channel.name: await ctx.channel.delete()
+    if "🎫-" in ctx.channel.name:
+        u_name = ctx.channel.name.replace("🎫-", "")
+        member = discord.utils.get(ctx.guild.members, name=u_name)
+
+        # Pobieranie historii wiadomości z kanału
+        history_messages = []
+        async for message in ctx.channel.history(limit=100, oldest_first=True):
+            time_str = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            history_messages.append(f"[{time_str}] {message.author}: {message.content}")
+        
+        transcript_text = "\n".join(history_messages)
+        if len(transcript_text) > 1900:
+            transcript_text = transcript_text[-1900:]
+
+        # Wysłanie historii na PW do gracza, który założył ticket
+        if member:
+            try:
+                await member.send(f"📜 **Historia odrzuconego ticketa z serwisu {ctx.guild.name}:**\n```text\n{transcript_text}\n```")
+            except discord.Forbidden:
+                pass
+
+        # Usunięcie kanału ticketa
+        await ctx.channel.delete()
 
 
 # --- PANEL WWW (FLASK) ---
