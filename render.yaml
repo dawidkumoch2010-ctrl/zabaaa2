@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: moj-bot-discord
+    env: python
+    region: frankfurt
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn bot:app
+    envVars:
+      - key: DISCORD_TOKEN
+        value: MTQ5MzkxMjg0ODI0ODYwMjY3NQ.G6TTQ0.AGf3BnZs9FA3ch4HzMHbwx6Y5qh5vAVW_RYJpE
