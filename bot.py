@@ -44,7 +44,7 @@ async def send_log(guild, message):
 class TicketView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v37")
+    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v38")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         cat = discord.utils.get(guild.categories, name="『ETAP 1』")
@@ -72,7 +72,7 @@ class TicketView(discord.ui.View):
 class VerifyView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v37")
+    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v38")
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         role = discord.utils.get(interaction.guild.roles, name="║ do rekru")
         if role: await interaction.user.add_roles(role)
@@ -83,7 +83,7 @@ class AdminDashboard(discord.ui.View):
     
     @discord.ui.select(
         placeholder="Zarządzaj gildią...",
-        custom_id="persistent:admin_v37",
+        custom_id="persistent:admin_v38",
         options=[
             discord.SelectOption(label="BUDUJ WSZYSTKO (FULL SETUP)", value="setup", emoji="🏗️"),
             discord.SelectOption(label="Wyślij Weryfikację", value="ver", emoji="🛡️"),
@@ -218,16 +218,25 @@ async def acc(ctx):
         # Pobieranie historii wiadomości z kanału
         history_messages = []
         async for message in ctx.channel.history(limit=100, oldest_first=True):
-            time_str = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            history_messages.append(f"[{time_str}] {message.author}: {message.content}")
+            time_str = message.created_at.strftime("%H:%M:%S")
+            history_messages.append(f"**[{time_str}] {message.author.name}:** {message.content}")
         
         transcript_text = "\n".join(history_messages)
-        if len(transcript_text) > 1900:
-            transcript_text = transcript_text[-1900:]
+        if len(transcript_text) > 4000:
+            transcript_text = transcript_text[-4000:]
 
-        # Wysłanie historii na PW do osoby wpisującej komendę (!acc)
+        # Tworzenie ładnego embeda z historią dla administratora
+        embed = discord.Embed(
+            title=f"✅ Zaakceptowany Ticket: {ctx.channel.name}",
+            description=transcript_text if transcript_text else "Brak wiadomości w tickecie.",
+            color=discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        embed.set_footer(text=f"Serwer: {ctx.guild.name}")
+
+        # Wysłanie embeda na PW do osoby wpisującej komendę (!acc)
         try:
-            await ctx.author.send(f"📜 **Historia zaakceptowanego ticketa ({ctx.channel.name}):**\n```text\n{transcript_text}\n```")
+            await ctx.author.send(embed=embed)
         except discord.Forbidden:
             pass
 
@@ -243,17 +252,26 @@ async def odrz(ctx):
         # Pobieranie historii wiadomości z kanału
         history_messages = []
         async for message in ctx.channel.history(limit=100, oldest_first=True):
-            time_str = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
-            history_messages.append(f"[{time_str}] {message.author}: {message.content}")
+            time_str = message.created_at.strftime("%H:%M:%S")
+            history_messages.append(f"**[{time_str}] {message.author.name}:** {message.content}")
         
         transcript_text = "\n".join(history_messages)
-        if len(transcript_text) > 1900:
-            transcript_text = transcript_text[-1900:]
+        if len(transcript_text) > 4000:
+            transcript_text = transcript_text[-4000:]
 
-        # Wysłanie historii na PW do gracza, który założył ticket
+        # Tworzenie ładnego embeda z historią dla gracza
+        embed = discord.Embed(
+            title=f"❌ Historia odrzuconego ticketa: {ctx.channel.name}",
+            description=transcript_text if transcript_text else "Brak wiadomości w tickecie.",
+            color=discord.Color.red(),
+            timestamp=datetime.now()
+        )
+        embed.set_footer(text=f"Serwer: {ctx.guild.name}")
+
+        # Wysłanie embeda na PW do gracza
         if member:
             try:
-                await member.send(f"📜 **Historia odrzuconego ticketa z serwisu {ctx.guild.name}:**\n```text\n{transcript_text}\n```")
+                await member.send(embed=embed)
             except discord.Forbidden:
                 pass
 
