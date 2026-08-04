@@ -44,12 +44,11 @@ async def send_log(guild, message):
 class TicketView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v35")
+    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v36")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         cat = discord.utils.get(guild.categories, name="『ETAP 1』")
         
-        # Pobieranie ról do uprawnień kanału
         r_ticket = discord.utils.get(guild.roles, name="Ticket")
         r_zarzad = discord.utils.get(guild.roles, name="Zarząd")
         r_test_zarzad = discord.utils.get(guild.roles, name="Test Zarząd")
@@ -61,7 +60,6 @@ class TicketView(discord.ui.View):
             guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
         }
         
-        # Automatyczne dodawanie uprawnień dla rang zarządzających do KAŻDEGO ticketu
         roles_to_add = [r_ticket, r_zarzad, r_test_zarzad, r_szef]
         for role in roles_to_add:
             if role:
@@ -74,7 +72,7 @@ class TicketView(discord.ui.View):
 class VerifyView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v35")
+    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v36")
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         role = discord.utils.get(interaction.guild.roles, name="║ do rekru")
         if role: await interaction.user.add_roles(role)
@@ -85,7 +83,7 @@ class AdminDashboard(discord.ui.View):
     
     @discord.ui.select(
         placeholder="Zarządzaj gildią...",
-        custom_id="persistent:admin_v35",
+        custom_id="persistent:admin_v36",
         options=[
             discord.SelectOption(label="BUDUJ WSZYSTKO (FULL SETUP)", value="setup", emoji="🏗️"),
             discord.SelectOption(label="Wyślij Weryfikację", value="ver", emoji="🛡️"),
@@ -99,9 +97,8 @@ class AdminDashboard(discord.ui.View):
         ev = guild.default_role
 
         if select.values[0] == "setup":
-            await interaction.response.send_message("🚀 Buduję strukturę z uwzględnieniem Zarządu i Ticketów...", ephemeral=True)
+            await interaction.response.send_message("🚀 Buduję strukturę...", ephemeral=True)
             
-            # --- ROLE ---
             roles_data = {
                 "「 」SZEF": 0x992d22, 
                 "Zarząd": 0x740909, 
@@ -117,7 +114,6 @@ class AdminDashboard(discord.ui.View):
                 role = discord.utils.get(guild.roles, name=n) or await guild.create_role(name=n, color=discord.Color(c), hoist=True)
                 r[n] = role
             
-            # --- UPRAWNIENIA ---
             p_member = {
                 ev: discord.PermissionOverwrite(view_channel=False), 
                 r["「 」Członek"]: discord.PermissionOverwrite(view_channel=True), 
@@ -125,7 +121,6 @@ class AdminDashboard(discord.ui.View):
                 r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)
             }
             
-            # Rangi widzące rekrutację (w tym Ticket, Zarząd, Test Zarząd)
             p_rekru = {
                 ev: discord.PermissionOverwrite(view_channel=False),
                 r["「 」Członek"]: discord.PermissionOverwrite(view_channel=False),
@@ -137,7 +132,6 @@ class AdminDashboard(discord.ui.View):
                 r["║ do rekru"]: discord.PermissionOverwrite(view_channel=True)
             }
 
-            # Logi ukryte dla Test Zarządu
             p_logs = {
                 ev: discord.PermissionOverwrite(view_channel=False),
                 r["Ticket"]: discord.PermissionOverwrite(view_channel=False),
@@ -146,7 +140,6 @@ class AdminDashboard(discord.ui.View):
                 r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)
             }
 
-            # --- KANAŁY ---
             c_w = await guild.create_category("・ 『Witaj/Żegnaj』 ・")
             await guild.create_text_channel("💻-witamy", category=c_w)
             await guild.create_text_channel("💬-żegnamy", category=c_w)
@@ -170,7 +163,6 @@ class AdminDashboard(discord.ui.View):
             await guild.create_voice_channel("🔊-Gadanko 1", category=c_vo)
             await guild.create_voice_channel("🔊-Gadanko 2", category=c_vo)
 
-            # --- SEKCJA REKRUTACJI ---
             c_r = await guild.create_category("・ 『Rekrutacja』 ・", overwrites=p_rekru)
             await guild.create_text_channel("🎫-ticket", category=c_r)
             await guild.create_voice_channel("🔊-Rekru 1", category=c_r, user_limit=2)
@@ -178,14 +170,12 @@ class AdminDashboard(discord.ui.View):
 
             await guild.create_category("『ETAP 1』", overwrites=p_rekru)
             await guild.create_category("『ETAP 2』", overwrites=p_rekru)
-            await guild.create_category("『ARCHIWUM』", overwrites=p_rekru)
 
-            # --- ADMIN ---
             c_a = await guild.create_category("・ 『Administracja』 ・", overwrites={ev: discord.PermissionOverwrite(view_channel=False)})
             await guild.create_text_channel("📑-logi", category=c_a, overwrites=p_logs)
             await guild.create_text_channel("⚙-panel", category=c_a, overwrites=p_logs)
             
-            await interaction.followup.send("✅ System zbudowany! Zarząd i Ticket widzą wszystko.", ephemeral=True)
+            await interaction.followup.send("✅ System zbudowany bez archiwum!", ephemeral=True)
 
         elif select.values[0] == "ver": await interaction.channel.send(embed=discord.Embed(title="🛡️ WERYFIKACJA", color=0x2ecc71), view=VerifyView())
         elif select.values[0] == "tick": await interaction.channel.send(embed=discord.Embed(title="🎫 REKRUTACJA", color=0x3498db), view=TicketView())
@@ -214,28 +204,37 @@ async def dashboard(ctx):
 
 @bot.command()
 async def acc(ctx):
-    target = discord.utils.get(ctx.guild.categories, name="『ETAP 2』")
-    role_ticket = discord.utils.get(ctx.guild.roles, name="Ticket")
-    role_mention = role_ticket.mention if role_ticket else "@Ticket"
-    
-    if target and "🎫-" in ctx.channel.name:
-        await ctx.channel.edit(category=target)
-        await ctx.send(f"Etap 2 {role_mention} jak ktoś będzie miał czas to ci odpisze w sprawie duel wtedy udaj sie na kanal <#1494791287533076603> lub <#1494791290569621685>")
-
-@bot.command()
-async def final(ctx):
     if "🎫-" in ctx.channel.name:
         u_name = ctx.channel.name.replace("🎫-", "")
         member = discord.utils.get(ctx.guild.members, name=u_name)
+        
+        # Nadanie rangi członka i zabranie rangi do rekrutacji
         r_cz = discord.utils.get(ctx.guild.roles, name="「 」Członek")
         r_re = discord.utils.get(ctx.guild.roles, name="║ do rekru")
         if member:
             if r_cz: await member.add_roles(r_cz)
             if r_re: await member.remove_roles(r_re)
-            await ctx.channel.set_permissions(member, view_channel=False)
-        archive = discord.utils.get(ctx.guild.categories, name="『ARCHIWUM』")
-        if archive: await ctx.channel.edit(category=archive)
-        await ctx.send("👑 **FINAŁ.** Ticket zarchiwizowany.")
+
+        # Zbieranie historii wiadomości z kanału przed jego usunięciem
+        history_messages = []
+        async for message in ctx.channel.history(limit=100, oldest_first=True):
+            time_str = message.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            history_messages.append(f"[{time_str}] {message.author}: {message.content}")
+        
+        transcript_text = "\n".join(history_messages)
+        if len(transcript_text) > 1900:
+            transcript_text = transcript_text[-1900:] # Ograniczenie długości wiadomości na PW
+
+        # Wysłanie historii na PW do użytkownika, jeśli został znaleziony
+        if member:
+            try:
+                await member.send(f"📜 **Historia Twojego ticketa z serwisu {ctx.guild.name}:**\n```text\n{transcript_text}\n```")
+            except discord.Forbidden:
+            # Użytkownik ma zablokowane wiadomości prywatne
+                pass
+
+        # Usunięcie kanału ticketa
+        await ctx.channel.delete()
 
 @bot.command()
 async def odrz(ctx):
