@@ -44,7 +44,7 @@ async def send_log(guild, message):
 class TicketView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v39")
+    @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v40")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
         cat = discord.utils.get(guild.categories, name="『ETAP 1』")
@@ -72,7 +72,7 @@ class TicketView(discord.ui.View):
 class VerifyView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
     
-    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v39")
+    @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v40")
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         role = discord.utils.get(interaction.guild.roles, name="║ do rekru")
         if role: await interaction.user.add_roles(role)
@@ -83,7 +83,7 @@ class AdminDashboard(discord.ui.View):
     
     @discord.ui.select(
         placeholder="Zarządzaj gildią...",
-        custom_id="persistent:admin_v39",
+        custom_id="persistent:admin_v40",
         options=[
             discord.SelectOption(label="BUDUJ WSZYSTKO (FULL SETUP)", value="setup", emoji="🏗️"),
             discord.SelectOption(label="Wyślij Weryfikację", value="ver", emoji="🛡️"),
@@ -168,7 +168,6 @@ class AdminDashboard(discord.ui.View):
             await guild.create_voice_channel("🔊-Rekru 1", category=c_r, user_limit=2)
             await guild.create_voice_channel("🔊-Rekru 2", category=c_r, user_limit=2)
 
-            # Tworzymy kategorie Etap 1 i Etap 2
             await guild.create_category("『ETAP 1』", overwrites=p_rekru)
             await guild.create_category("『ETAP 2』", overwrites=p_rekru)
 
@@ -176,7 +175,7 @@ class AdminDashboard(discord.ui.View):
             await guild.create_text_channel("📑-logi", category=c_a, overwrites=p_logs)
             await guild.create_text_channel("⚙-panel", category=c_a, overwrites=p_logs)
             
-            await interaction.followup.send("✅ System zbudowany z Etapem 1 i Etapem 2!", ephemeral=True)
+            await interaction.followup.send("✅ System zbudowany pomyślnie!", ephemeral=True)
 
         elif select.values[0] == "ver": await interaction.channel.send(embed=discord.Embed(title="🛡️ WERYFIKACJA", color=0x2ecc71), view=VerifyView())
         elif select.values[0] == "tick": await interaction.channel.send(embed=discord.Embed(title="🎫 REKRUTACJA", color=0x3498db), view=TicketView())
@@ -216,10 +215,19 @@ async def acc(ctx):
         member = discord.utils.get(guild.members, name=u_name)
         user_mention = member.mention if member else f"@{u_name}"
 
-        # 1. JEŚLI KANAŁ JEST W ETAPIE 1 -> PRZENIEŚ DO ETAPU 2
+        # 1. JEŚLI KANAŁ JEST W ETAPIE 1 -> PRZENIEŚ DO ETAPU 2 I WYŚLIJ EMBED
         if etap_1 and current_cat == etap_1 and etap_2:
             await ctx.channel.edit(category=etap_2)
-            await ctx.send(f"Etap 2 {user_mention} jak ktoś będzie miał czas to ci odpisze w sprawie duel wtedy udaj sie na kanal <#1494791287533076603> lub <#1494791290569621685>")
+            
+            embed_etap2 = discord.Embed(
+                title="⚔️ PRZEJŚCIE DO ETAPU 2",
+                description=f"{user_mention}, jak ktoś będzie miał czas, to Ci odpisze w sprawie duelu. W międzyczasie udaj się na kanał głosowy: <#1494791287533076603> lub <#1494791290569621685>",
+                color=discord.Color.orange(),
+                timestamp=datetime.now()
+            )
+            embed_etap2.set_footer(text=f"Serwer: {guild.name}")
+            
+            await ctx.send(embed=embed_etap2)
         
         # 2. JEŚLI KANAŁ JEST JUŻ W ETAPIE 2 -> FINALIZACJA I USUNIĘCIE TICKETU
         elif etap_2 and current_cat == etap_2:
