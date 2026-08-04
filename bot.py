@@ -43,6 +43,7 @@ async def send_log(guild, message):
 
 class TicketView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
+    
     @discord.ui.button(label="Otwórz Ticket", style=discord.ButtonStyle.primary, emoji="🎫", custom_id="persistent:open_v35")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         guild = interaction.guild
@@ -72,6 +73,7 @@ class TicketView(discord.ui.View):
 
 class VerifyView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
+    
     @discord.ui.button(label="Zacznij Rekrutację", style=discord.ButtonStyle.success, emoji="⚔️", custom_id="persistent:verify_v35")
     async def verify(self, interaction: discord.Interaction, button: discord.ui.Button):
         role = discord.utils.get(interaction.guild.roles, name="║ do rekru")
@@ -80,6 +82,7 @@ class VerifyView(discord.ui.View):
 
 class AdminDashboard(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
+    
     @discord.ui.select(
         placeholder="Zarządzaj gildią...",
         custom_id="persistent:admin_v35",
@@ -115,7 +118,12 @@ class AdminDashboard(discord.ui.View):
                 r[n] = role
             
             # --- UPRAWNIENIA ---
-            p_member = {ev: discord.PermissionOverwrite(view_channel=False), r["「 」Członek"]: discord.PermissionOverwrite(view_channel=True), r["🤝 Sojusz"]: discord.PermissionOverwrite(view_channel=True), r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)}
+            p_member = {
+                ev: discord.PermissionOverwrite(view_channel=False), 
+                r["「 」Członek"]: discord.PermissionOverwrite(view_channel=True), 
+                r["🤝 Sojusz"]: discord.PermissionOverwrite(view_channel=True), 
+                r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)
+            }
             
             # Rangi widzące rekrutację (w tym Ticket, Zarząd, Test Zarząd)
             p_rekru = {
@@ -140,22 +148,27 @@ class AdminDashboard(discord.ui.View):
 
             # --- KANAŁY ---
             c_w = await guild.create_category("・ 『Witaj/Żegnaj』 ・")
-            await guild.create_text_channel("💻-witamy", category=c_w); await guild.create_text_channel("💬-żegnamy", category=c_w)
+            await guild.create_text_channel("💻-witamy", category=c_w)
+            await guild.create_text_channel("💬-żegnamy", category=c_w)
 
             c_i = await guild.create_category("・ 『Informacje』 ・", overwrites=p_member)
-            await guild.create_text_channel("📢-ogłoszenia", category=c_i); await guild.create_text_channel("🚫-regulamin", category=c_i)
+            await guild.create_text_channel("📢-ogłoszenia", category=c_i)
+            await guild.create_text_channel("🚫-regulamin", category=c_i)
 
             c_v = await guild.create_category("・ 『Weryfikacja』 ・")
             await guild.create_text_channel("🛡️-weryfikacja", category=c_v)
 
             c_c = await guild.create_category("・ 『Strefa Chatu』 ・", overwrites=p_member)
-            await guild.create_text_channel("💬-chat", category=c_c); await guild.create_text_channel("📷-multimedia", category=c_c)
+            await guild.create_text_channel("💬-chat", category=c_c)
+            await guild.create_text_channel("📷-multimedia", category=c_c)
 
             c_d = await guild.create_category("・ 『Dane Gildii』 ・", overwrites=p_member)
-            await guild.create_text_channel("📜-kordy", category=c_d); await guild.create_text_channel("📝-formułki", category=c_d)
+            await guild.create_text_channel("📜-kordy", category=c_d)
+            await guild.create_text_channel("📝-formułki", category=c_d)
 
             c_vo = await guild.create_category("・ 『Kanały Głosowe』 ・", overwrites=p_member)
-            await guild.create_voice_channel("🔊-Gadanko 1", category=c_vo); await guild.create_voice_channel("🔊-Gadanko 2", category=c_vo)
+            await guild.create_voice_channel("🔊-Gadanko 1", category=c_vo)
+            await guild.create_voice_channel("🔊-Gadanko 2", category=c_vo)
 
             # --- SEKCJA REKRUTACJI ---
             c_r = await guild.create_category("・ 『Rekrutacja』 ・", overwrites=p_rekru)
@@ -259,9 +272,15 @@ def run_flask():
 
 # --- URUCHOMIENIE APLIKACJI ---
 if __name__ == "__main__":
-    # Uruchomienie serwera WWW w osobnym wątku
-    t = threading.Thread(target=run_flask)
-    t.start()
+    # Pobieramy token ze zmiennych środowiskowych z panelu Render
+    TOKEN = os.environ.get("DISCORD_TOKEN")
     
-    # Uruchomienie bota Discord (z Twoim tokenem)
-    bot.run('Discord TOKEN')
+    if not TOKEN:
+        print("❌ BŁĄD: Nie znaleziono zmiennej DISCORD_TOKEN w ustawieniach Rendera!")
+    else:
+        # Uruchomienie serwera WWW (Flask) w osobnym wątku (dla statusu 200 na Renderze)
+        t = threading.Thread(target=run_flask)
+        t.start()
+        
+        # Uruchomienie bota Discord w głównym wątku
+        bot.run(TOKEN)
