@@ -39,6 +39,56 @@ async def send_log(guild, message):
         embed = discord.Embed(title="⚙️ SYSTEM LOGS", description=message, color=discord.Color.dark_grey(), timestamp=datetime.now())
         await log_channel.send(embed=embed)
 
+# --- MODALE (FORMULARZE OKIENKOWE) ---
+
+class SendEmbedModal(discord.ui.Modal, title="📩 Wyślij wiadomość w ramce"):
+    channel_id = discord.ui.TextInput(
+        label="ID Kanału",
+        placeholder="Wklej tutaj ID kanału (np. 123456789012345678)...",
+        required=True
+    )
+
+    msg_title = discord.ui.TextInput(
+        label="Tytuł wiadomości",
+        placeholder="Nagłówek ramki (opcjonalnie)...",
+        required=False
+    )
+
+    msg_content = discord.ui.TextInput(
+        label="Treść wiadomości",
+        style=discord.TextStyle.paragraph,
+        placeholder="Wpisz treść wiadomości...",
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        try:
+            target_channel_id = int(self.channel_id.value.strip())
+            channel = interaction.guild.get_channel(target_channel_id)
+
+            if not channel or not isinstance(channel, discord.TextChannel):
+                await interaction.response.send_message("❌ Nie znaleziono wskazanego kanału tekstowego na tym serwerze!", ephemeral=True)
+                return
+
+            embed = discord.Embed(
+                title=self.msg_title.value if self.msg_title.value else None,
+                description=self.msg_content.value,
+                color=discord.Color.blue(),
+                timestamp=datetime.now()
+            )
+            embed.set_footer(
+                text=f"Wysłano przez: {interaction.user.display_name}",
+                icon_url=interaction.user.display_avatar.url
+            )
+
+            await channel.send(embed=embed)
+            await interaction.response.send_message(f"✅ Wiadomość pomyślnie wysłana na kanał {channel.mention}!", ephemeral=True)
+
+        except ValueError:
+            await interaction.response.send_message("❌ Niepoprawny format ID kanału! ID musi składać się z samych cyfr.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Wystąpił błąd podczas wysyłania: {e}", ephemeral=True)
+
 # --- WIDOKI ---
 
 class TicketView(discord.ui.View):
@@ -88,6 +138,7 @@ class AdminDashboard(discord.ui.View):
             discord.SelectOption(label="BUDUJ WSZYSTKO (FULL SETUP)", value="setup", emoji="🏗️"),
             discord.SelectOption(label="Wyślij Weryfikację", value="ver", emoji="🛡️"),
             discord.SelectOption(label="Wyślij Tickety", value="tick", emoji="🎫"),
+            discord.SelectOption(label="Wyślij Wiadomość na Kanał (ID)", value="send_msg", emoji="📩"),
             discord.SelectOption(label="Wyczyść czat", value="clear", emoji="🧹"),
             discord.SelectOption(label="NUKE SERVER", value="nuke", emoji="☢️")
         ]
@@ -96,7 +147,10 @@ class AdminDashboard(discord.ui.View):
         guild = interaction.guild
         ev = guild.default_role
 
-        if select.values[0] == "setup":
+        if select.values[0] == "send_msg":
+            await interaction.response.send_modal(SendEmbedModal())
+
+        elif select.values[0] == "setup":
             await interaction.response.send_message("🚀 Buduję strukturę z uwzględnieniem Etapu 1 i Etapu 2...", ephemeral=True)
             
             roles_data = {
