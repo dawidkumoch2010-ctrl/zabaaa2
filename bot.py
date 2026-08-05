@@ -248,6 +248,18 @@ async def on_ready():
     print(f"✅ Bot online: {bot.user}")
 
 @bot.event
+async def on_member_join(member):
+    channel = discord.utils.get(member.guild.text_channels, name="💻-witamy")
+    if channel:
+        await channel.send(f"Witamy {member.mention} w GILDII KLON🥊")
+
+@bot.event
+async def on_member_remove(member):
+    channel = discord.utils.get(member.guild.text_channels, name="💬-żegnamy")
+    if channel:
+        await channel.send(f"jebał cię pies śmieciu {member.mention}")
+
+@bot.event
 async def setup_hook():
     bot.add_view(AdminDashboard()); bot.add_view(VerifyView()); bot.add_view(TicketView())
 
