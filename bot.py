@@ -26,7 +26,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 
 # --- FUNKCJA DO POBIERANIA HISTORII ---
 async def send_transcript_dm(member: discord.Member, channel: discord.TextChannel):
-    """Pobiera historię i wysyła na DM użytkownika."""
     messages = []
     async for message in channel.history(limit=100, oldest_first=True):
         if not message.author.bot:
@@ -82,7 +81,6 @@ async def keep_alive_ping():
         except Exception as e:
             print(f"⚠️ [KEEP-ALIVE] Błąd: {e}")
 
-# --- POMOCNICZA FUNKCJA DO ZNALEZIENIA KANDYDATA ---
 def get_ticket_target(channel: discord.TextChannel, moderator: discord.Member):
     target = None
     for obj, overwrite in channel.overwrites.items():
@@ -361,40 +359,59 @@ async def dashboard(interaction: discord.Interaction):
     )
     await interaction.response.send_message(embed=embed, view=AdminDashboard(), ephemeral=True)
 
-@bot.tree.command(name="acc", description="Akceptuje podanie gracza i przenosi na etap 2")
+@bot.tree.command(name="acc", description="Akceptuje podanie (1. wpisanie przenosi do Etapu 2, 2. wpisanie finalizuje i wysyła historię)")
 async def acc(interaction: discord.Interaction):
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Brak uprawnień!", ephemeral=True)
         return
 
-    # Pobieramy kandydata (twórcę ticketa)
     target = get_ticket_target(interaction.channel, interaction.user)
     if not target:
         await interaction.response.send_message("❌ Nie znaleziono kandydata na tym kanale!", ephemeral=True)
         return
 
-    # 1. Przenoszenie kanału do kategorii '『ETAP 2』' (tak jak było na początku)
-    etap2_cat = discord.utils.get(interaction.guild.categories, name="『ETAP 2』")
-    if etap2_cat:
-        try:
-            await interaction.channel.edit(category=etap2_cat)
-        except Exception:
-            pass
+    is_in_etap2 = interaction.channel.category and interaction.channel.category.name == "『ETAP 2』"
 
-    # 2. Wysyłanie historii do rekrutera na DM
-    success = await send_transcript_dm(interaction.user, interaction.channel)
+    if not is_in_etap2:
+        # PIERWSZE /ACC - Przeniesienie do Etapu 2 z oryginalnym napisem
+        etap2_cat = discord.utils.get(interaction.guild.categories, name="『ETAP 2』")
+        if etap2_cat:
+            try:
+                await interaction.channel.edit(category=etap2_cat)
+            except Exception:
+                pass
 
-    embed = discord.Embed(
-        title="🎉 PODANIE ZAAKCEPTOWANE!",
-        description=f"Kandydat {target.mention} pomyślnie przeszedł rekrutację (przeniesiono do Etapu 2) przez {interaction.user.mention}!",
-        color=discord.Color.green(),
-        timestamp=datetime.now()
-    )
-    if not success:
-        embed.add_field(name="⚠️ Uwaga:", value="Nie udało się wysłać transkryptu na Twój DM (masz zablokowane wiadomości prywatne).")
+        embed = discord.Embed(
+            title="🎉 PODANIE ZAAKCEPTOWANE!",
+            description=f"Kandydat {target.mention} pomyślnie przeszedł rekrutację i został **PRZYJĘTY** do gildii przez {interaction.user.mention}!",
+            color=discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        await interaction.response.send_message(embed=embed)
+        await send_log(interaction.guild, f"🔄 **ETAP 2:** Kandydat {target.mention} przeniesiony do Etapu 2 przez {interaction.user.mention}.")
+    else:
+        # DRUGIE /ACC - Finał rekrutacji, nadanie rangi i wysłanie historii na DM
+        r_czlonek = discord.utils.get(interaction.guild.roles, name="「 」Członek")
+        r_do_rekru = discord.utils.get(interaction.guild.roles, name="║ do rekru")
+        r_ticket = discord.utils.get(interaction.guild.roles, name="Ticket")
 
-    await interaction.response.send_message(embed=embed)
-    await send_log(interaction.guild, f"✅ **AKCEPTACJA:** Użytkownik {target.mention} zaakceptowany do Etapu 2 przez {interaction.user.mention}.")
+        if r_czlonek: await target.add_roles(r_czlonek)
+        if r_do_rekru and r_do_rekru in target.roles: await target.remove_roles(r_do_rekru)
+        if r_ticket and r_ticket in target.roles: await target.remove_roles(r_ticket)
+
+        success = await send_transcript_dm(interaction.user, interaction.channel)
+
+        embed = discord.Embed(
+            title="🎉 PODANIE ZAAKCEPTOWANE (FINAŁ)!",
+            description=f"Kandydat {target.mention} został w pełni zatwierdzony i ukończył rekrutację przez {interaction.user.mention}!",
+            color=discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        if not success:
+            embed.add_field(name="⚠️ Uwaga:", value="Nie udało się wysłać transkryptu na Twój DM (masz zablokowane wiadomości prywatne).")
+
+        await interaction.response.send_message(embed=embed)
+        await send_log(interaction.guild, f"✅ **AKCEPTACJA KOŃCOWA:** Użytkownik {target.mention} przyjęty przez {interaction.user.mention}. Historia wysłana na DM.")
 
 @bot.tree.command(name="odrz", description="Odrzuca kandydata z ticketa i przesyła historię na jego DM")
 async def odrz(interaction: discord.Interaction):
@@ -407,13 +424,11 @@ async def odrz(interaction: discord.Interaction):
         await interaction.response.send_message("❌ Nie znaleziono kandydata na tym kanale!", ephemeral=True)
         return
 
-    # Zabieramy role rekrutacyjne
     r_do_rekru = discord.utils.get(interaction.guild.roles, name="║ do rekru")
     r_ticket = discord.utils.get(interaction.guild.roles, name="Ticket")
     if r_do_rekru and r_do_rekru in target.roles: await target.remove_roles(r_do_rekru)
     if r_ticket and r_ticket in target.roles: await target.remove_roles(r_ticket)
 
-    # Wysyłamy historię do kandydata na DM
     success = await send_transcript_dm(target, interaction.channel)
 
     embed = discord.Embed(
