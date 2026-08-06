@@ -47,7 +47,7 @@ async def keep_alive_ping():
         except Exception as e:
             print(f"⚠️ [KEEP-ALIVE] Błąd podczas wysyłania pinga: {e}")
 
-# --- FORMULARZ PODANIA (1 FORMULARZ — MAX 5 PÓL DISCORDA) ---
+# --- FORMULARZ PODANIA ---
 
 class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
     q1 = discord.ui.TextInput(
@@ -79,8 +79,8 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
         max_length=300
     )
     q13 = discord.ui.TextInput(
-        label="13. Słuchasz liderówki?",
-        placeholder="Tak / Nie + ewentualny komentarz...",
+        label="13. Czy znasz kogoś?",
+        placeholder="Wpisz kogo znasz z gildii...",
         style=discord.TextStyle.short,
         required=True,
         max_length=100
@@ -90,14 +90,12 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
         mc_nickname = self.q1.value.strip()
         nickname_changed = False
 
-        # Zmiana nicku na Discordzie na nick z MC
         try:
             await interaction.user.edit(nick=mc_nickname)
             nickname_changed = True
         except Exception:
             nickname_changed = False
 
-        # Generowanie wiadomości Embed ze wzorem
         embed = discord.Embed(
             title=f"📋 PODANIE REKRUTACYJNE — {interaction.user.display_name}",
             description=(
@@ -110,12 +108,11 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
         )
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
-        # Dodanie pytań i odpowiedzi według wybranego wzoru od góry do dołu
         embed.add_field(name="➞ 1. Nick z Minecrafta »", value=self.q1.value, inline=False)
         embed.add_field(name="➞ 2. Ile masz lat? »", value=self.q2.value, inline=False)
         embed.add_field(name="➞ 9. Podaj 3 ostatnie gildie »", value=self.q9.value, inline=False)
         embed.add_field(name="➞ 10. Dlaczego my? »", value=self.q10.value, inline=False)
-        embed.add_field(name="➞ 13. Słuchasz liderówki? »", value=self.q13.value, inline=False)
+        embed.add_field(name="➞ 13. Czy znasz kogoś? »", value=self.q13.value, inline=False)
 
         embed.set_footer(
             text=f"ID Użytkownika: {interaction.user.id}",
@@ -329,7 +326,7 @@ class AdminDashboard(discord.ui.View):
             else:
                 await interaction.followup.send("❌ Tylko właściciel serwera może użyć NUKE!", ephemeral=True)
 
-# --- BOT EVENTS ---
+# --- BOT EVENTS & SYNCHRONIZACJA KOMEND ---
 
 @bot.event
 async def on_ready():
@@ -346,10 +343,17 @@ async def setup_hook():
     bot.add_view(TicketView())
     bot.add_view(KlepaView())
     bot.add_view(PodanieTicketView())
-    synced = await bot.tree.sync()
-    print(f"✅ Zsynchronizowano komendy Slash ({len(synced)} komend)")
+    
+    await bot.tree.sync()
+    print("⚡ Zsynchronizowano komendy globalnie!")
 
-# --- DEDYKOWANE KOMENDY SLASH (/ACC & /ODRZ) ---
+@bot.command(name="sync")
+@commands.has_permissions(administrator=True)
+async def sync_prefix(ctx):
+    synced = await bot.tree.sync()
+    await ctx.send(f"✅ Natychmiast zsynchronizowano {len(synced)} komend `/` na tym serwerze!")
+
+# --- KOMENDY SLASH ---
 
 @bot.tree.command(name="dashboard", description="Otwiera panel zarządczy bota (Tylko dla Administratorów)")
 @app_commands.checks.has_permissions(administrator=True)
