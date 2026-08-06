@@ -89,14 +89,14 @@ def get_ticket_target(channel: discord.TextChannel, moderator: discord.Member):
             break
     return target
 
-# --- FORMULARZ PODANIA ---
+# --- FORMULARZ PODANIA (NUMERACJA 1, 2, 3, 4, 5) ---
 
 class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
     q1 = discord.ui.TextInput(label="1. Nick z Minecrafta", placeholder="Twój nick...", style=discord.TextStyle.short, required=True, max_length=32)
     q2 = discord.ui.TextInput(label="2. Ile masz lat?", placeholder="Twój wiek...", style=discord.TextStyle.short, required=True, max_length=10)
-    q9 = discord.ui.TextInput(label="9. Podaj 3 ostatnie gildie", placeholder="Gildie...", style=discord.TextStyle.paragraph, required=True, max_length=200)
-    q10 = discord.ui.TextInput(label="10. Dlaczego my?", placeholder="Powód...", style=discord.TextStyle.paragraph, required=True, max_length=300)
-    q13 = discord.ui.TextInput(label="13. Czy znasz kogoś?", placeholder="Znajomi...", style=discord.TextStyle.short, required=True, max_length=100)
+    q3 = discord.ui.TextInput(label="3. Podaj 3 ostatnie gildie", placeholder="Gildie...", style=discord.TextStyle.paragraph, required=True, max_length=200)
+    q4 = discord.ui.TextInput(label="4. Dlaczego my?", placeholder="Powód...", style=discord.TextStyle.paragraph, required=True, max_length=300)
+    q5 = discord.ui.TextInput(label="5. Czy znasz kogoś?", placeholder="Znajomi...", style=discord.TextStyle.short, required=True, max_length=100)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
@@ -113,9 +113,9 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
         embed.add_field(name="➞ 1. Nick z Minecrafta »", value=self.q1.value, inline=False)
         embed.add_field(name="➞ 2. Ile masz lat? »", value=self.q2.value, inline=False)
-        embed.add_field(name="➞ 9. Podaj 3 ostatnie gildie »", value=self.q9.value, inline=False)
-        embed.add_field(name="➞ 10. Dlaczego my? »", value=self.q10.value, inline=False)
-        embed.add_field(name="➞ 13. Czy znasz kogoś? »", value=self.q13.value, inline=False)
+        embed.add_field(name="➞ 3. Podaj 3 ostatnie gildie »", value=self.q3.value, inline=False)
+        embed.add_field(name="➞ 4. Dlaczego my? »", value=self.q4.value, inline=False)
+        embed.add_field(name="➞ 5. Czy znasz kogoś? »", value=self.q5.value, inline=False)
 
         await interaction.channel.send(embed=embed)
         await interaction.response.send_message("✅ Podanie zostało wysłane!", ephemeral=True)
