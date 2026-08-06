@@ -236,90 +236,6 @@ class VerifyView(discord.ui.View):
         if role: await interaction.user.add_roles(role)
         await interaction.response.send_message("✅ Nadano rangę do rekrutacji!", ephemeral=True)
 
-class AdminDashboard(discord.ui.View):
-    def __init__(self): super().__init__(timeout=None)
-    
-    @discord.ui.select(
-        placeholder="Zarządzaj gildią...",
-        custom_id="persistent:admin_v40",
-        options=[
-            discord.SelectOption(label="BUDUJ WSZYSTKO (FULL SETUP)", value="setup", emoji="🏗️"),
-            discord.SelectOption(label="Wyślij Weryfikację", value="ver", emoji="🛡️"),
-            discord.SelectOption(label="Wyślij Tickety", value="tick", emoji="🎫"),
-            discord.SelectOption(label="Wyślij Wiadomość na Kanał (ID)", value="send_msg", emoji="📩"),
-            discord.SelectOption(label="Wyczyść czat", value="clear", emoji="🧹"),
-            discord.SelectOption(label="NUKE SERVER", value="nuke", emoji="☢️")
-        ]
-    )
-    async def select_callback(self, interaction: discord.Interaction, select: discord.ui.Select):
-        guild = interaction.guild
-        ev = guild.default_role
-
-        if select.values[0] == "send_msg":
-            await interaction.response.send_modal(SendEmbedModal())
-            return
-
-        await interaction.response.defer(ephemeral=True)
-
-        if select.values[0] == "setup":
-            roles_data = {
-                "「 」SZEF": 0x992d22, "Zarząd": 0x740909, "Test Zarząd": 0xe67e22, 
-                "Rekruter": 0x3498db, "Ticket": 0x00ffff, "「 」Członek": 0x9b59b6, 
-                "🤝 Sojusz": 0xf1c40f, "║ do rekru": 0x2ecc71
-            }
-            r = {}
-            for n, c in roles_data.items():
-                role = discord.utils.get(guild.roles, name=n) or await guild.create_role(name=n, color=discord.Color(c), hoist=True)
-                r[n] = role
-            
-            p_member = {ev: discord.PermissionOverwrite(view_channel=False), r["「 」Członek"]: discord.PermissionOverwrite(view_channel=True), r["🤝 Sojusz"]: discord.PermissionOverwrite(view_channel=True), r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)}
-            p_rekru = {ev: discord.PermissionOverwrite(view_channel=False), r["「 」Członek"]: discord.PermissionOverwrite(view_channel=False), r["Ticket"]: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True), r["Rekruter"]: discord.PermissionOverwrite(view_channel=True), r["Test Zarząd"]: discord.PermissionOverwrite(view_channel=True), r["Zarząd"]: discord.PermissionOverwrite(view_channel=True), r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True), r["║ do rekru"]: discord.PermissionOverwrite(view_channel=True)}
-            p_logs = {ev: discord.PermissionOverwrite(view_channel=False), r["Ticket"]: discord.PermissionOverwrite(view_channel=False), r["Test Zarząd"]: discord.PermissionOverwrite(view_channel=False), r["Zarząd"]: discord.PermissionOverwrite(view_channel=True), r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)}
-
-            c_w = await guild.create_category("・ 『Witaj/Żegnamy』 ・")
-            await guild.create_text_channel("💻-witamy", category=c_w)
-            await guild.create_text_channel("💬-żegnamy", category=c_w)
-            c_i = await guild.create_category("・ 『Informacje』 ・", overwrites=p_member)
-            await guild.create_text_channel("📢-ogłoszenia", category=c_i)
-            await guild.create_text_channel("🚫-regulamin", category=c_i)
-            c_v = await guild.create_category("・ 『Weryfikacja』 ・")
-            await guild.create_text_channel("🛡️-weryfikacja", category=c_v)
-            c_c = await guild.create_category("・ 『Strefa Chatu』 ・", overwrites=p_member)
-            await guild.create_text_channel("💬-chat", category=c_c)
-            await guild.create_text_channel("📷-multimedia", category=c_c)
-            c_d = await guild.create_category("・ 『Dane Gildii』 ・", overwrites=p_member)
-            await guild.create_text_channel("📜-kordy", category=c_d)
-            await guild.create_text_channel("📝-formułki", category=c_d)
-            c_vo = await guild.create_category("・ 『Kanały Głosowe』 ・", overwrites=p_member)
-            await guild.create_voice_channel("🔊-Gadanko 1", category=c_vo)
-            await guild.create_voice_channel("🔊-Gadanko 2", category=c_vo)
-            c_r = await guild.create_category("・ 『Rekrutacja』 ・", overwrites=p_rekru)
-            await guild.create_text_channel("🎫-ticket", category=c_r)
-            await guild.create_voice_channel("🔊-Rekru 1", category=c_r, user_limit=2)
-            await guild.create_voice_channel("🔊-Rekru 2", category=c_r, user_limit=2)
-            await guild.create_category("『ETAP 1』", overwrites=p_rekru)
-            await guild.create_category("『ETAP 2』", overwrites=p_rekru)
-            c_a = await guild.create_category("・ 『Administracja』 ・", overwrites={ev: discord.PermissionOverwrite(view_channel=False)})
-            await guild.create_text_channel("📑-logi", category=c_a, overwrites=p_logs)
-            await guild.create_text_channel("⚙-panel", category=c_a, overwrites=p_logs)
-            await interaction.followup.send("✅ System zbudowany!", ephemeral=True)
-
-        elif select.values[0] == "ver": 
-            await interaction.channel.send(embed=discord.Embed(title="🛡️ WERYFIKACJA", color=0x2ecc71), view=VerifyView())
-            await interaction.followup.send("✅ Wysłano panel weryfikacji!", ephemeral=True)
-        elif select.values[0] == "tick": 
-            await interaction.channel.send(embed=discord.Embed(title="🎫 REKRUTACJA", color=0x3498db), view=TicketView())
-            await interaction.followup.send("✅ Wysłano panel ticketów!", ephemeral=True)
-        elif select.values[0] == "clear": 
-            await interaction.channel.purge(limit=100)
-            await interaction.followup.send("✅ Wyczyśćono czat!", ephemeral=True)
-        elif select.values[0] == "nuke":
-            if interaction.user == guild.owner:
-                for c in guild.channels: await c.delete()
-                await guild.create_text_channel("nuke-done")
-            else:
-                await interaction.followup.send("❌ Tylko właściciel serwera może użyć NUKE!", ephemeral=True)
-
 # --- BOT EVENTS & SYNCHRONIZACJA ---
 
 @bot.event
@@ -332,7 +248,6 @@ async def on_ready():
 
 @bot.event
 async def setup_hook():
-    bot.add_view(AdminDashboard())
     bot.add_view(VerifyView())
     bot.add_view(TicketView())
     bot.add_view(KlepaView())
@@ -347,19 +262,94 @@ async def sync_prefix(ctx):
     synced = await bot.tree.sync()
     await ctx.send(f"✅ Zsynchronizowano {len(synced)} komend `/`!")
 
-# --- KOMENDY SLASH ---
+# --- BEZPOŚREDNIE KOMENDY SLASH (ZASTĄPIENIE DASHBOARDU) ---
 
-@bot.tree.command(name="dashboard", description="Otwiera panel zarządczy bota")
+@bot.tree.command(name="setup", description="Buduje pełny setup serwera (role, kanały, kategorie)")
 @app_commands.checks.has_permissions(administrator=True)
-async def dashboard(interaction: discord.Interaction):
-    embed = discord.Embed(
-        title="⚙️ PANEL ZARZĄDZANIA GILDIA",
-        description="Wybierz opcję z poniższego menu rozwijanego.",
-        color=discord.Color.gold()
-    )
-    await interaction.response.send_message(embed=embed, view=AdminDashboard(), ephemeral=True)
+async def cmd_setup(interaction: discord.Interaction):
+    guild = interaction.guild
+    ev = guild.default_role
+    await interaction.response.defer(ephemeral=True)
 
-@bot.tree.command(name="acc", description="Akceptuje podanie (1. wpisanie przenosi do Etapu 2, 2. wpisanie finalizuje i wysyła historię)")
+    roles_data = {
+        "「 」SZEF": 0x992d22, "Zarząd": 0x740909, "Test Zarząd": 0xe67e22, 
+        "Rekruter": 0x3498db, "Ticket": 0x00ffff, "「 」Członek": 0x9b59b6, 
+        "🤝 Sojusz": 0xf1c40f, "║ do rekru": 0x2ecc71
+    }
+    r = {}
+    for n, c in roles_data.items():
+        role = discord.utils.get(guild.roles, name=n) or await guild.create_role(name=n, color=discord.Color(c), hoist=True)
+        r[n] = role
+    
+    p_member = {ev: discord.PermissionOverwrite(view_channel=False), r["「 」Członek"]: discord.PermissionOverwrite(view_channel=True), r["🤝 Sojusz"]: discord.PermissionOverwrite(view_channel=True), r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)}
+    p_rekru = {ev: discord.PermissionOverwrite(view_channel=False), r["「 」Członek"]: discord.PermissionOverwrite(view_channel=False), r["Ticket"]: discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True), r["Rekruter"]: discord.PermissionOverwrite(view_channel=True), r["Test Zarząd"]: discord.PermissionOverwrite(view_channel=True), r["Zarząd"]: discord.PermissionOverwrite(view_channel=True), r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True), r["║ do rekru"]: discord.PermissionOverwrite(view_channel=True)}
+    p_logs = {ev: discord.PermissionOverwrite(view_channel=False), r["Ticket"]: discord.PermissionOverwrite(view_channel=False), r["Test Zarząd"]: discord.PermissionOverwrite(view_channel=False), r["Zarząd"]: discord.PermissionOverwrite(view_channel=True), r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)}
+
+    c_w = await guild.create_category("・ 『Witaj/Żegnamy』 ・")
+    await guild.create_text_channel("💻-witamy", category=c_w)
+    await guild.create_text_channel("💬-żegnamy", category=c_w)
+    c_i = await guild.create_category("・ 『Informacje』 ・", overwrites=p_member)
+    await guild.create_text_channel("📢-ogłoszenia", category=c_i)
+    await guild.create_text_channel("🚫-regulamin", category=c_i)
+    c_v = await guild.create_category("・ 『Weryfikacja』 ・")
+    await guild.create_text_channel("🛡️-weryfikacja", category=c_v)
+    c_c = await guild.create_category("・ 『Strefa Chatu』 ・", overwrites=p_member)
+    await guild.create_text_channel("💬-chat", category=c_c)
+    await guild.create_text_channel("📷-multimedia", category=c_c)
+    c_d = await guild.create_category("・ 『Dane Gildii』 ・", overwrites=p_member)
+    await guild.create_text_channel("📜-kordy", category=c_d)
+    await guild.create_text_channel("📝-formułki", category=c_d)
+    c_vo = await guild.create_category("・ 『Kanały Głosowe』 ・", overwrites=p_member)
+    await guild.create_voice_channel("🔊-Gadanko 1", category=c_vo)
+    await guild.create_voice_channel("🔊-Gadanko 2", category=c_vo)
+    c_r = await guild.create_category("・ 『Rekrutacja』 ・", overwrites=p_rekru)
+    await guild.create_text_channel("🎫-ticket", category=c_r)
+    await guild.create_voice_channel("🔊-Rekru 1", category=c_r, user_limit=2)
+    await guild.create_voice_channel("🔊-Rekru 2", category=c_r, user_limit=2)
+    await guild.create_category("『ETAP 1』", overwrites=p_rekru)
+    await guild.create_category("『ETAP 2』", overwrites=p_rekru)
+    c_a = await guild.create_category("・ 『Administracja』 ・", overwrites={ev: discord.PermissionOverwrite(view_channel=False)})
+    await guild.create_text_channel("📑-logi", category=c_a, overwrites=p_logs)
+    await guild.create_text_channel("⚙-panel", category=c_a, overwrites=p_logs)
+    await interaction.followup.send("✅ System zbudowany!", ephemeral=True)
+
+@bot.tree.command(name="weryfikacja", description="Wysyła panel weryfikacji na obecny kanał")
+@app_commands.checks.has_permissions(administrator=True)
+async def cmd_weryfikacja(interaction: discord.Interaction):
+    await interaction.channel.send(embed=discord.Embed(title="🛡️ WERYFIKACJA", color=0x2ecc71), view=VerifyView())
+    await interaction.response.send_message("✅ Wysłano panel weryfikacji!", ephemeral=True)
+
+@bot.tree.command(name="tickety", description="Wysyła panel ticketów rekrutacyjnych na obecny kanał")
+@app_commands.checks.has_permissions(administrator=True)
+async def cmd_tickety(interaction: discord.Interaction):
+    await interaction.channel.send(embed=discord.Embed(title="🎫 REKRUTACJA", color=0x3498db), view=TicketView())
+    await interaction.response.send_message("✅ Wysłano panel ticketów!", ephemeral=True)
+
+@bot.tree.command(name="wiadomosc", description="Wysyła wiadomość w ramce na podany kanał")
+@app_commands.checks.has_permissions(administrator=True)
+async def cmd_wiadomosc(interaction: discord.Interaction):
+    await interaction.response.send_modal(SendEmbedModal())
+
+@bot.tree.command(name="clear", description="Czyści do 100 wiadomości na obecnym kanale")
+@app_commands.checks.has_permissions(administrator=True)
+async def cmd_clear(interaction: discord.Interaction):
+    await interaction.response.defer(ephemeral=True)
+    deleted = await interaction.channel.purge(limit=100)
+    await interaction.followup.send(f"✅ Wyczyszczono {len(deleted)} wiadomości!", ephemeral=True)
+
+@bot.tree.command(name="nuke", description="Usuwa wszystkie kanały na serwerie (tylko właściciel)")
+async def cmd_nuke(interaction: discord.Interaction):
+    if interaction.user != interaction.guild.owner:
+        await interaction.response.send_message("❌ Tylko właściciel serwera może użyć NUKE!", ephemeral=True)
+        return
+    await interaction.response.defer(ephemeral=True)
+    for c in interaction.guild.channels:
+        await c.delete()
+    await interaction.guild.create_text_channel("nuke-done")
+
+# --- POZOSTAŁE KOMENDY ---
+
+@bot.tree.command(name="acc", description="Akceptuje podanie (1. wpisanie przenosi do Etapu 2, 2. wpisanie finalizuje)")
 async def acc(interaction: discord.Interaction):
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Brak uprawnień!", ephemeral=True)
@@ -373,7 +363,6 @@ async def acc(interaction: discord.Interaction):
     is_in_etap2 = interaction.channel.category and interaction.channel.category.name == "『ETAP 2』"
 
     if not is_in_etap2:
-        # PIERWSZE /ACC - Przeniesienie do Etapu 2 z oryginalnym napisem
         etap2_cat = discord.utils.get(interaction.guild.categories, name="『ETAP 2』")
         if etap2_cat:
             try:
@@ -390,7 +379,6 @@ async def acc(interaction: discord.Interaction):
         await interaction.response.send_message(embed=embed)
         await send_log(interaction.guild, f"🔄 **ETAP 2:** Kandydat {target.mention} przeniesiony do Etapu 2 przez {interaction.user.mention}.")
     else:
-        # DRUGIE /ACC - Finał rekrutacji, nadanie rangi i wysłanie historii na DM
         r_czlonek = discord.utils.get(interaction.guild.roles, name="「 」Członek")
         r_do_rekru = discord.utils.get(interaction.guild.roles, name="║ do rekru")
         r_ticket = discord.utils.get(interaction.guild.roles, name="Ticket")
