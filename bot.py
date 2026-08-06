@@ -1,9 +1,10 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 import asyncio
 from datetime import datetime
 import os
 import threading
+import aiohttp
 from flask import Flask, render_template_string
 
 # --- KONFIGURACJA SERWERA WWW I BOTA ---
@@ -38,6 +39,19 @@ async def send_log(guild, message):
     if log_channel:
         embed = discord.Embed(title="⚙️ SYSTEM LOGS", description=message, color=discord.Color.dark_grey(), timestamp=datetime.now())
         await log_channel.send(embed=embed)
+
+# --- MECHANIZM KEEP-ALIVE (SAMOPINGOWANIE CO 10 MINUT) ---
+@tasks.loop(minutes=10)
+async def keep_alive_ping():
+    # Render automatycznie udostępnia zmienną RENDER_EXTERNAL_URL
+    url = os.environ.get("RENDER_EXTERNAL_URL")
+    if url:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as response:
+                    print(f"⏰ [KEEP-ALIVE] Ping wysłany do {url} | Status: {response.status}")
+        except Exception as e:
+            print(f"⚠️ [KEEP-ALIVE] Błąd podczas wysyłania pinga: {e}")
 
 # --- MODALE (FORMULARZE OKIENKOWE) ---
 
@@ -194,7 +208,7 @@ class AdminDashboard(discord.ui.View):
                 r["「 」SZEF"]: discord.PermissionOverwrite(view_channel=True)
             }
 
-            c_w = await guild.create_category("・ 『Witaj/Żegnaj』 ・")
+            c_w = await guild.create_category("・ 『Witaj/Żegnamy』 ・")
             await guild.create_text_channel("💻-witamy", category=c_w)
             await guild.create_text_channel("💬-żegnamy", category=c_w)
 
@@ -246,6 +260,10 @@ async def on_ready():
     global bot_status
     bot_status = f"Zalogowany jako {bot.user}"
     print(f"✅ Bot online: {bot.user}")
+    
+    # Uruchomienie pętli pingującej, jeśli jeszcze nie działa
+    if not keep_alive_ping.is_running():
+        keep_alive_ping.start()
 
 @bot.event
 async def on_member_join(member):
