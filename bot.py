@@ -15,26 +15,6 @@ bot_status = "Uruchamianie..."
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- WZÓR PODANIA ---
-WZOR_PODANIA = """**WZÓR PODANIA**
-➞ 1. Nick z Minecrafta »
-➞ 2. Ile masz lat? »
-➞ 3. Dzienna aktywność »
-➞ 4. Od kiedy grasz gildie »
-➞ 5. Twoje PvP od 1 do 10 »
-➞ 6. Co robisz gdy zginiesz na przebicie? »
-➞ 7. Kiedy kończysz edycję? »
-➞ 8. Czy drzesz mordę na kanale podczas klepy »
-➞ 9. Podaj 3 ostatnie gildię »
-➞ 10. Dlaczego my? » 
-➞ 11. Skille (slime/water) »
-➞ 12. Staty (Mogą być SS) »
-➞ 13. Słuchasz liderówki? » 
-➞ 14. Znasz kogoś? »
-➞ 15. Na ile zostajesz? »
-➞ 16. Doświadczenie 1.16 »
-➞ 17. Toksyczność/Dystans »"""
-
 async def send_log(guild, message):
     log_channel = discord.utils.get(guild.text_channels, name="📑-logi")
     if log_channel:
@@ -103,7 +83,135 @@ class SendEmbedModal(discord.ui.Modal, title="📩 Wyślij wiadomość w ramce")
         except Exception as e:
             await interaction.response.send_message(f"❌ Wystąpił błąd podczas wysyłania: {e}", ephemeral=True)
 
+class PodanieModal(discord.ui.Modal, title="📝 Formularz Rekrutacyjny Gildii"):
+    # Pole 1: Osobne pole na Nick MC (dokładnie do zmiany na DC)
+    nick_mc = discord.ui.TextInput(
+        label="1. Twój nick z Minecrafta",
+        style=discord.TextStyle.short,
+        placeholder="Wpisz swój dokładny nick w grze (np. Janek_PVP)...",
+        required=True,
+        max_length=32
+    )
+    p1 = discord.ui.TextInput(
+        label="2. Wiek, aktywność, od kiedy grasz",
+        style=discord.TextStyle.paragraph,
+        placeholder="1. Wiek:\n2. Dzienna aktywność:\n3. Od kiedy grasz w gildie:",
+        required=True
+    )
+    p2 = discord.ui.TextInput(
+        label="3. PvP (1-10), skille, staty, po zgonie",
+        style=discord.TextStyle.paragraph,
+        placeholder="1. PvP (1-10):\n2. Co gdy zginiesz na przebicie:\n3. Skille (slime/water):\n4. Staty:",
+        required=True
+    )
+    p3 = discord.ui.TextInput(
+        label="4. Ostatnie gildie, exp 1.16, toksyczność",
+        style=discord.TextStyle.paragraph,
+        placeholder="1. Drzesz mordę na klepie:\n2. 3 ostatnie gildie:\n3. Doświadczenie 1.16:\n4. Toksyczność/Dystans:",
+        required=True
+    )
+    p4 = discord.ui.TextInput(
+        label="5. Dlaczego my, zasady, na ile zostajesz",
+        style=discord.TextStyle.paragraph,
+        placeholder="1. Kiedy kończysz edycję:\n2. Dlaczego my:\n3. Słuchasz liderówki:\n4. Znasz kogoś:\n5. Na ile zostajesz:",
+        required=True
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        mc_nickname = self.nick_mc.value.strip()
+        nickname_changed = False
+
+        # --- AUTOMATYCZNA ZMIANA NICKU NA DISCORDZIE ---
+        try:
+            await interaction.user.edit(nick=mc_nickname)
+            nickname_changed = True
+        except discord.Forbidden:
+            nickname_changed = False
+        except Exception as e:
+            print(f"Błąd przy zmianie nicku: {e}")
+
+        # --- TWORZENIE EMBEDA Z PODANIEM ---
+        embed = discord.Embed(
+            title=f"📋 WYPEŁNIONE PODANIE — {interaction.user.display_name}",
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        embed.add_field(
+            name="🎮 Nick Minecraft", 
+            value=f"`{mc_nickname}`" + (" *(Automatycznie ustawiono na DC ✅)*" if nickname_changed else ""), 
+            inline=False
+        )
+        embed.add_field(name="📌 1. Dane podstawowe", value=self.p1.value, inline=False)
+        embed.add_field(name="⚔️ 2. PvP & Umiejętności", value=self.p2.value, inline=False)
+        embed.add_field(name="🛡️ 3. Doświadczenie & Gildie", value=self.p3.value, inline=False)
+        embed.add_field(name="🤝 4. Motywacja & Zasady", value=self.p4.value, inline=False)
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.set_footer(text=f"Złożono przez: {interaction.user.name}", icon_url=interaction.user.display_avatar.url)
+
+        await interaction.channel.send(embed=embed)
+
+        # Wygenerowanie wiadomości potwiedzenia
+        msg = "✅ Twoje podanie zostało pomyślnie wysłane na kanał!"
+        if nickname_changed:
+            msg += f"\n✏️ Twój nick na Discordzie został automatycznie zmieniony na **{mc_nickname}**."
+        else:
+            msg += f"\n⚠️ Nie udało się automatycznie zmienić Twojego nicku (bot ma za niskie uprawnienia lub jesteś właścicielem serwera)."
+
+        await interaction.response.send_message(msg, ephemeral=True)
+        await send_log(interaction.guild, f"📝 **NOWE PODANIE:** Użytkownik {interaction.user.mention} wypełnił podanie (Nick MC: **{mc_nickname}**).")
+
 # --- WIDOKI ---
+
+class PodanieTicketView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Wypełnij podanie", style=discord.ButtonStyle.success, emoji="📝", custom_id="persistent:fill_podanie_v1")
+    async def fill_podanie(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.send_modal(PodanieModal())
+
+class KlepaView(discord.ui.View):
+    def __init__(self):
+        super().__init__(timeout=None)
+        self.wchodza = []
+        self.pozniej = []
+        self.nie_moga = []
+
+    @discord.ui.button(label="🟢 Wchodzę (0)", style=discord.ButtonStyle.success, custom_id="klepa_v1:wchodze")
+    async def wchodze(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.mention
+        if user in self.pozniej: self.pozniej.remove(user)
+        if user in self.nie_moga: self.nie_moga.remove(user)
+        if user not in self.wchodza: self.wchodza.append(user)
+        await self.update_msg(interaction)
+
+    @discord.ui.button(label="🟡 Będę później (0)", style=discord.ButtonStyle.warning, custom_id="klepa_v1:pozniej")
+    async def pozniej(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.mention
+        if user in self.wchodza: self.wchodza.remove(user)
+        if user in self.nie_moga: self.nie_moga.remove(user)
+        if user not in self.pozniej: self.pozniej.append(user)
+        await self.update_msg(interaction)
+
+    @discord.ui.button(label="🔴 Nie mogę (0)", style=discord.ButtonStyle.danger, custom_id="klepa_v1:niemoge")
+    async def niemoge(self, interaction: discord.Interaction, button: discord.ui.Button):
+        user = interaction.user.mention
+        if user in self.wchodza: self.wchodza.remove(user)
+        if user in self.pozniej: self.pozniej.remove(user)
+        if user not in self.nie_moga: self.nie_moga.append(user)
+        await self.update_msg(interaction)
+
+    async def update_msg(self, interaction: discord.Interaction):
+        self.children[0].label = f"🟢 Wchodzę ({len(self.wchodza)})"
+        self.children[1].label = f"🟡 Będę później ({len(self.pozniej)})"
+        self.children[2].label = f"🔴 Nie mogę ({len(self.nie_moga)})"
+        
+        embed = interaction.message.embeds[0]
+        embed.set_field_at(0, name="🟢 Wchodzą:", value=", ".join(self.wchodza) if self.wchodza else "Brak", inline=False)
+        embed.set_field_at(1, name="🟡 Będą później:", value=", ".join(self.pozniej) if self.pozniej else "Brak", inline=False)
+        embed.set_field_at(2, name="🔴 Nie mogą:", value=", ".join(self.nie_moga) if self.nie_moga else "Brak", inline=False)
+        
+        await interaction.response.edit_message(embed=embed, view=self)
 
 class TicketView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
@@ -131,7 +239,13 @@ class TicketView(discord.ui.View):
 
         channel = await guild.create_text_channel(f"🎫-{interaction.user.name}", category=cat, overwrites=overwrites)
         await interaction.response.send_message(f"✅ Ticket stworzony: {channel.mention}", ephemeral=True)
-        await channel.send(embed=discord.Embed(title="📋 FORMULARZ", description=WZOR_PODANIA, color=0x3498db))
+        
+        embed_podanie = discord.Embed(
+            title="📋 FORMULARZ REKRUTACYJNY",
+            description="Kliknij poniższy przycisk **📝 Wypełnij podanie**, aby otworzyć okienko rekrutacyjne i odpowiedzieć na pytania!",
+            color=0x3498db
+        )
+        await channel.send(embed=embed_podanie, view=PodanieTicketView())
 
 class VerifyView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
@@ -281,11 +395,73 @@ async def setup_hook():
     bot.add_view(AdminDashboard())
     bot.add_view(VerifyView())
     bot.add_view(TicketView())
-    # Synchronizacja komend Slash (/) z serwerem Discorda
+    bot.add_view(KlepaView())
+    bot.add_view(PodanieTicketView())
     await bot.tree.sync()
     print("✅ Zsynchronizowano komendy Slash (/)!")
 
 # --- SLASH COMMANDS (/) ---
+
+@bot.tree.command(name="klepa", description="Wysyła ogłoszenie o mobilizacji na klepę na kanał ogłoszenia")
+@app_commands.describe(opis="Opcjonalny dodatkowy opis mobilizacji")
+async def klepa(interaction: discord.Interaction, opis: str = "Przebijają nas, wbijajcie na kanał głosowy!"):
+    guild = interaction.guild
+    target_channel = discord.utils.get(guild.text_channels, name="📢-ogłoszenia") or interaction.channel
+
+    embed = discord.Embed(
+        title="🚨 MOBILIZACJA / KLEPA 🚨",
+        description=f"**{opis}**\n\nKliknij odpowiedni przycisk poniżej, aby poinformować o swojej obecności!",
+        color=discord.Color.red(),
+        timestamp=datetime.now()
+    )
+    embed.add_field(name="🟢 Wchodzą:", value="Brak", inline=False)
+    embed.add_field(name="🟡 Będą później:", value="Brak", inline=False)
+    embed.add_field(name="🔴 Nie mogą:", value="Brak", inline=False)
+    embed.set_footer(text=f"Mobilizacja wywołana przez: {interaction.user.display_name}")
+
+    view = KlepaView()
+
+    await target_channel.send(
+        content="@everyone przebijaja nas wbijajcie kanał",
+        embed=embed,
+        view=view,
+        allowed_mentions=discord.AllowedMentions(everyone=True)
+    )
+    await interaction.response.send_message(f"✅ Pomyślnie wysłano mobilizację na kanał {target_channel.mention}!", ephemeral=True)
+
+@bot.tree.command(name="nick", description="Zmienia nick na Discordzie graczowi, który otworzył dany ticket")
+@app_commands.describe(nick_mc="Nick z Minecrafta, który ma zostać ustawiony")
+async def nick(interaction: discord.Interaction, nick_mc: str):
+    channel = interaction.channel
+    if "🎫-" not in channel.name:
+        await interaction.response.send_message("❌ Ta komenda może być używana tylko na kanałach ticketów!", ephemeral=True)
+        return
+
+    guild = interaction.guild
+    u_name = channel.name.replace("🎫-", "")
+    
+    member = discord.utils.get(guild.members, name=u_name)
+    if not member:
+        member = discord.utils.get(guild.members, display_name=u_name)
+
+    target_member = member if member else interaction.user
+
+    try:
+        old_nick = target_member.display_name
+        await target_member.edit(nick=nick_mc)
+        
+        embed = discord.Embed(
+            title="✏️ ZMIANA NICKU MINECRAFT",
+            description=f"Pomyślnie zmieniono nick gracza {target_member.mention} na **`{nick_mc}`**!\n*(Poprzedni nick: {old_nick})*",
+            color=discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        await interaction.response.send_message(embed=embed)
+        await send_log(guild, f"✏️ **ZMIANA NICKU:** {interaction.user.mention} zmienił nick gracza {target_member.mention} na **{nick_mc}** w tickecie {channel.name}.")
+    except discord.Forbidden:
+        await interaction.response.send_message("❌ Bot nie ma wystarczających uprawnień, aby zmienić nick temu graczowi (rola bota musi być wyżej)!", ephemeral=True)
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Wystąpił błąd podczas zmiany nicku: {e}", ephemeral=True)
 
 @bot.tree.command(name="dashboard", description="Otwiera panel sterowania botem (Tylko Admin)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -313,7 +489,6 @@ async def acc(interaction: discord.Interaction):
     member = discord.utils.get(guild.members, name=u_name)
     user_mention = member.mention if member else f"@{u_name}"
 
-    # 1. JEŚLI KANAŁ JEST W ETAPIE 1 -> PRZENIEŚ DO ETAPU 2
     if etap_1 and current_cat == etap_1 and etap_2:
         await channel.edit(category=etap_2)
         
@@ -328,7 +503,6 @@ async def acc(interaction: discord.Interaction):
         await interaction.response.send_message("✅ Przeniesiono ticket do **Etapu 2**!", ephemeral=True)
         await channel.send(embed=embed_etap2)
     
-    # 2. JEŚLI KANAŁ JEST JUŻ W ETAPIE 2 -> FINALIZACJA I USUNIĘCIE TICKETU
     elif etap_2 and current_cat == etap_2:
         await interaction.response.defer(ephemeral=True)
         
@@ -400,8 +574,6 @@ async def odrz(interaction: discord.Interaction):
     await send_log(interaction.guild, f"❌ Ticket **{channel.name}** został odrzucony przez {interaction.user.mention}.")
     await channel.delete()
 
-# --- NOWE KOMENDY: MODERACJA BAN & WARN ---
-
 @bot.tree.command(name="ban", description="Zbanuj gracza z serwera")
 @app_commands.checks.has_permissions(ban_members=True)
 @app_commands.describe(member="Wybierz członka do zbanowania", reason="Powód zbanowania")
@@ -436,7 +608,6 @@ async def warn(interaction: discord.Interaction, member: discord.Member, reason:
     )
     await interaction.response.send_message(embed=embed)
     
-    # Powiadomienie na PW do ukaranego gracza
     try:
         await member.send(f"⚠️ Otrzymałeś ostrzeżenie na serwerze **{interaction.guild.name}**!\n**Powód:** {reason}\n**Moderator:** {interaction.user.name}")
     except discord.Forbidden:
