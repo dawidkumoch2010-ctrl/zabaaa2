@@ -115,13 +115,13 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Rekrutacyjny Gildii")
     p3 = discord.ui.TextInput(
         label="4. Ostatnie gildie, exp 1.16, toksyczność",
         style=discord.TextStyle.paragraph,
-        placeholder="1. Drzesz mordę na klepie:\n2. 3 ostatnie gildie:\n3. Doświadczenie 1.16:\n4. Toksyczność/Dystans:",
+        placeholder="1. Klepa / mikro:\n2. 3 ostatnie gildie:\n3. Exp 1.16:\n4. Toksyczność / dystans:",
         required=True
     )
     p4 = discord.ui.TextInput(
         label="5. Dlaczego my, zasady, na ile zostajesz",
         style=discord.TextStyle.paragraph,
-        placeholder="1. Kiedy kończysz edycję:\n2. Dlaczego my:\n3. Słuchasz liderówki:\n4. Znasz kogoś:\n5. Na ile zostajesz:",
+        placeholder="1. Koniec edycji?\n2. Dlaczego my?\n3. Słuchasz liderówki?\n4. Na ile zostajesz?",
         required=True
     )
 
