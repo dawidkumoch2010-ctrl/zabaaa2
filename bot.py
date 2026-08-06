@@ -6,12 +6,21 @@ from datetime import datetime
 import os
 import threading
 import aiohttp
-from flask import Flask, render_template_string
+from flask import Flask
 
-# --- KONFIGURACJA SERWERA WWW I BOTA ---
+# --- KONFIGURACJA SERWERA WWW (FLASK) ---
 app = Flask(__name__)
 bot_status = "Uruchamianie..."
 
+@app.route("/")
+def home():
+    return f"Status bota: {bot_status}"
+
+def run_flask():
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
+
+# --- KONFIGURACJA BOTA ---
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -21,7 +30,7 @@ async def send_log(guild, message):
         embed = discord.Embed(title="⚙️ SYSTEM LOGS", description=message, color=discord.Color.dark_grey(), timestamp=datetime.now())
         await log_channel.send(embed=embed)
 
-# --- MECHANIZM KEEP-ALIVE (SAMOPINGOWANIE CO 10 MINUT) ---
+# --- MECHANIZM KEEP-ALIVE (PING CO 10 MINUT) ---
 @tasks.loop(minutes=10)
 async def keep_alive_ping():
     url = os.environ.get("RENDER_EXTERNAL_URL")
@@ -33,7 +42,7 @@ async def keep_alive_ping():
         except Exception as e:
             print(f"⚠️ [KEEP-ALIVE] Błąd podczas wysyłania pinga: {e}")
 
-# --- MODALE (FORMULARZE OKIENKOWE) ---
+# --- MODALE (FORMULARZE) ---
 
 class SendEmbedModal(discord.ui.Modal, title="📩 Wyślij wiadomość w ramce"):
     channel_id = discord.ui.TextInput(
@@ -120,7 +129,6 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Rekrutacyjny Gildii")
         mc_nickname = self.nick_mc.value.strip()
         nickname_changed = False
 
-        # --- ZMIANA NICKU ---
         try:
             await interaction.user.edit(nick=mc_nickname)
             nickname_changed = True
@@ -129,7 +137,6 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Rekrutacyjny Gildii")
         except Exception as e:
             print(f"Błąd przy zmianie nicku: {e}")
 
-        # --- EMBED ---
         embed = discord.Embed(
             title=f"📋 WYPEŁNIONE PODANIE — {interaction.user.display_name}",
             color=discord.Color.blue(),
@@ -182,7 +189,6 @@ class KlepaView(discord.ui.View):
         if user not in self.wchodza: self.wchodza.append(user)
         await self.update_msg(interaction)
 
-    # NAPRAWIONO: ButtonStyle.warning zmieniono na ButtonStyle.secondary
     @discord.ui.button(label="🟡 Będę później (0)", style=discord.ButtonStyle.secondary, custom_id="klepa_v1:pozniej")
     async def pozniej(self, interaction: discord.Interaction, button: discord.ui.Button):
         user = interaction.user.mention
@@ -275,9 +281,11 @@ class AdminDashboard(discord.ui.View):
 
         if select.values[0] == "send_msg":
             await interaction.response.send_modal(SendEmbedModal())
+            return
 
-        elif select.values[0] == "setup":
-            await interaction.response.send_message("🚀 Buduję strukturę...", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
+
+        if select.values[0] == "setup":
             roles_data = {
                 "「 」SZEF": 0x992d22, "Zarząd": 0x740909, "Test Zarząd": 0xe67e22, 
                 "Rekruter": 0x3498db, "Ticket": 0x00ffff, "「 」Członek": 0x9b59b6, 
@@ -320,13 +328,21 @@ class AdminDashboard(discord.ui.View):
             await guild.create_text_channel("⚙-panel", category=c_a, overwrites=p_logs)
             await interaction.followup.send("✅ System zbudowany!", ephemeral=True)
 
-        elif select.values[0] == "ver": await interaction.channel.send(embed=discord.Embed(title="🛡️ WERYFIKACJA", color=0x2ecc71), view=VerifyView())
-        elif select.values[0] == "tick": await interaction.channel.send(embed=discord.Embed(title="🎫 REKRUTACJA", color=0x3498db), view=TicketView())
-        elif select.values[0] == "clear": await interaction.channel.purge(limit=100)
+        elif select.values[0] == "ver": 
+            await interaction.channel.send(embed=discord.Embed(title="🛡️ WERYFIKACJA", color=0x2ecc71), view=VerifyView())
+            await interaction.followup.send("✅ Wysłano panel weryfikacji!", ephemeral=True)
+        elif select.values[0] == "tick": 
+            await interaction.channel.send(embed=discord.Embed(title="🎫 REKRUTACJA", color=0x3498db), view=TicketView())
+            await interaction.followup.send("✅ Wysłano panel ticketów!", ephemeral=True)
+        elif select.values[0] == "clear": 
+            await interaction.channel.purge(limit=100)
+            await interaction.followup.send("✅ Wyczyśćono czat!", ephemeral=True)
         elif select.values[0] == "nuke":
             if interaction.user == guild.owner:
                 for c in guild.channels: await c.delete()
                 await guild.create_text_channel("nuke-done")
+            else:
+                await interaction.followup.send("❌ Tylko właściciel serwera może użyć NUKE!", ephemeral=True)
 
 # --- BOT EVENTS ---
 
@@ -375,8 +391,17 @@ async def on_app_command_error(interaction, error):
     if isinstance(error, app_commands.MissingPermissions):
         await interaction.response.send_message("Brak uprawnień!", ephemeral=True)
 
+# --- URUCHAMIANIE ---
+
 if __name__ == "__main__":
     TOKEN = os.environ.get("DISCORD_TOKEN")
-    if TOKEN:
-        threading.Thread(target=run_flask).start()
-        bot.run(TOKEN)
+    if not TOKEN:
+        print("❌ BŁĄD: Upewnij się, że dodałeś zmienną środowiskową DISCORD_TOKEN w panelu Render!")
+        exit(1)
+
+    # Uruchomienie serwera WWW Flask w osobnym wątku
+    t = threading.Thread(target=run_flask, daemon=True)
+    t.start()
+
+    # Uruchomienie bota Discorda
+    bot.run(TOKEN)
