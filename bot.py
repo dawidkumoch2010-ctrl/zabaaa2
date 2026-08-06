@@ -120,7 +120,7 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
         )
 
         await interaction.channel.send(embed=embed)
-        await interaction.response.send_message("✅ **Podanie zostało pomyślnie wysłane!** Oczekuj na weryfikację przez Zarząd.", ephemeral=True)
+        await interaction.response.send_message("✅ **Podanie zostało pomyślnie wysłane!** Oczekuj na weryfikację.", ephemeral=True)
         await send_log(interaction.guild, f"📝 **NOWE PODANIE:** Użytkownik {interaction.user.mention} wypełnił podanie.")
 
 # --- MODAL DLA ADMINA ---
@@ -366,17 +366,22 @@ async def dashboard(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed, view=AdminDashboard(), ephemeral=True)
 
 @bot.tree.command(name="acc", description="Akceptuje podanie gracza i nadaje rangę członek")
-@app_commands.checks.has_permissions(manage_roles=True)
-async def acc(interaction: discord.Interaction, uzytkownik: discord.Member = None):
-    target = uzytkownik
-    if not target:
-        for member in interaction.channel.members:
-            if not member.bot and member != interaction.user:
-                target = member
-                break
+async def acc(interaction: discord.Interaction):
+    allowed_roles = ["「 」SZEF", "Zarząd", "Test Zarząd", "Rekruter"]
+    has_perm = any(role.name in allowed_roles for role in interaction.user.roles) or interaction.user.guild_permissions.administrator
+    
+    if not has_perm:
+        await interaction.response.send_message("❌ Nie masz uprawnień do akceptowania podań!", ephemeral=True)
+        return
+
+    target = None
+    for member in interaction.channel.members:
+        if not member.bot and member != interaction.user:
+            target = member
+            break
 
     if not target:
-        await interaction.response.send_message("❌ Nie znaleziono użytkownika na kanale! Użyj `/acc @użytkownik`.", ephemeral=True)
+        await interaction.response.send_message("❌ Nie znaleziono kandydata na tym kanale!", ephemeral=True)
         return
 
     r_czlonek = discord.utils.get(interaction.guild.roles, name="「 」Członek")
@@ -404,17 +409,22 @@ async def acc(interaction: discord.Interaction, uzytkownik: discord.Member = Non
         await interaction.channel.delete()
 
 @bot.tree.command(name="odrz", description="Odrzuca kandydata i zamyka ticket")
-@app_commands.checks.has_permissions(manage_roles=True)
-async def odrz(interaction: discord.Interaction, uzytkownik: discord.Member = None, powod: str = "Brak podanego powodu"):
-    target = uzytkownik
-    if not target:
-        for member in interaction.channel.members:
-            if not member.bot and member != interaction.user:
-                target = member
-                break
+async def odrz(interaction: discord.Interaction):
+    allowed_roles = ["「 」SZEF", "Zarząd", "Test Zarząd", "Rekruter"]
+    has_perm = any(role.name in allowed_roles for role in interaction.user.roles) or interaction.user.guild_permissions.administrator
+    
+    if not has_perm:
+        await interaction.response.send_message("❌ Nie masz uprawnień do odrzucania podań!", ephemeral=True)
+        return
+
+    target = None
+    for member in interaction.channel.members:
+        if not member.bot and member != interaction.user:
+            target = member
+            break
 
     if not target:
-        await interaction.response.send_message("❌ Nie znaleziono użytkownika! Użyj `/odrz @użytkownik`.", ephemeral=True)
+        await interaction.response.send_message("❌ Nie znaleziono kandydata na tym kanale!", ephemeral=True)
         return
 
     r_do_rekru = discord.utils.get(interaction.guild.roles, name="║ do rekru")
@@ -427,12 +437,12 @@ async def odrz(interaction: discord.Interaction, uzytkownik: discord.Member = No
 
     embed = discord.Embed(
         title="❌ PODANIE ODRZUCONE",
-        description=f"Podanie gracza {target.mention} zostało **ODRZUCONE** przez {interaction.user.mention}.\n**Powód:** {powod}",
+        description=f"Podanie gracza {target.mention} zostało **ODRZUCONE** przez {interaction.user.mention}.",
         color=discord.Color.red(),
         timestamp=datetime.now()
     )
     await interaction.response.send_message(embed=embed)
-    await send_log(interaction.guild, f"❌ **ODRZUCENIE PODANIA:** Kandydat {target.mention} odrzucony przez {interaction.user.mention}. Powód: {powod}")
+    await send_log(interaction.guild, f"❌ **ODRZUCENIE PODANIA:** Kandydat {target.mention} odrzucony przez {interaction.user.mention}.")
 
     await asyncio.sleep(5)
     if interaction.channel.name.startswith("🎫-"):
