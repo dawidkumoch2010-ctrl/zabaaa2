@@ -1,4 +1,5 @@
 import discord
+from discord import app_commands
 from discord.ext import commands, tasks
 import asyncio
 from datetime import datetime
@@ -43,7 +44,6 @@ async def send_log(guild, message):
 # --- MECHANIZM KEEP-ALIVE (SAMOPINGOWANIE CO 10 MINUT) ---
 @tasks.loop(minutes=10)
 async def keep_alive_ping():
-    # Render automatycznie udostępnia zmienną RENDER_EXTERNAL_URL
     url = os.environ.get("RENDER_EXTERNAL_URL")
     if url:
         try:
@@ -261,7 +261,6 @@ async def on_ready():
     bot_status = f"Zalogowany jako {bot.user}"
     print(f"✅ Bot online: {bot.user}")
     
-    # Uruchomienie pętli pingującej, jeśli jeszcze nie działa
     if not keep_alive_ping.is_running():
         keep_alive_ping.start()
 
@@ -279,85 +278,68 @@ async def on_member_remove(member):
 
 @bot.event
 async def setup_hook():
-    bot.add_view(AdminDashboard()); bot.add_view(VerifyView()); bot.add_view(TicketView())
+    bot.add_view(AdminDashboard())
+    bot.add_view(VerifyView())
+    bot.add_view(TicketView())
+    # Synchronizacja komend Slash (/) z serwerem Discorda
+    await bot.tree.sync()
+    print("✅ Zsynchronizowano komendy Slash (/)!")
 
-@bot.command()
-@commands.has_permissions(administrator=True)
-async def dashboard(ctx):
-    await ctx.send(embed=discord.Embed(title="🖥️ PANEL STEROWANIA", color=0x5865F2), view=AdminDashboard())
+# --- SLASH COMMANDS (/) ---
 
-@bot.command()
-async def acc(ctx):
-    if "🎫-" in ctx.channel.name:
-        guild = ctx.guild
-        current_cat = ctx.channel.category
+@bot.tree.command(name="dashboard", description="Otwiera panel sterowania botem (Tylko Admin)")
+@app_commands.checks.has_permissions(administrator=True)
+async def dashboard(interaction: discord.Interaction):
+    await interaction.response.send_message(
+        embed=discord.Embed(title="🖥️ PANEL STEROWANIA", color=0x5865F2), 
+        view=AdminDashboard(),
+        ephemeral=True
+    )
+
+@bot.tree.command(name="acc", description="Akceptuj ticket (przejdź do Etapu 2 lub sfinalizuj)")
+async def acc(interaction: discord.Interaction):
+    channel = interaction.channel
+    if "🎫-" not in channel.name:
+        await interaction.response.send_message("❌ Ta komenda może być używana tylko na kanałach ticketów!", ephemeral=True)
+        return
+
+    guild = interaction.guild
+    current_cat = channel.category
+    
+    etap_1 = discord.utils.get(guild.categories, name="『ETAP 1』")
+    etap_2 = discord.utils.get(guild.categories, name="『ETAP 2』")
+    
+    u_name = channel.name.replace("🎫-", "")
+    member = discord.utils.get(guild.members, name=u_name)
+    user_mention = member.mention if member else f"@{u_name}"
+
+    # 1. JEŚLI KANAŁ JEST W ETAPIE 1 -> PRZENIEŚ DO ETAPU 2
+    if etap_1 and current_cat == etap_1 and etap_2:
+        await channel.edit(category=etap_2)
         
-        etap_1 = discord.utils.get(guild.categories, name="『ETAP 1』")
-        etap_2 = discord.utils.get(guild.categories, name="『ETAP 2』")
+        embed_etap2 = discord.Embed(
+            title="⚔️ PRZEJŚCIE DO ETAPU 2",
+            description=f"{user_mention}, jak ktoś będzie miał czas, to Ci odpisze w sprawie duelu. W międzyczasie udaj się na kanał głosowy: <#1494791287533076603> lub <#1494791290569621685>",
+            color=discord.Color.orange(),
+            timestamp=datetime.now()
+        )
+        embed_etap2.set_footer(text=f"Serwer: {guild.name}")
         
-        u_name = ctx.channel.name.replace("🎫-", "")
-        member = discord.utils.get(guild.members, name=u_name)
-        user_mention = member.mention if member else f"@{u_name}"
-
-        # 1. JEŚLI KANAŁ JEST W ETAPIE 1 -> PRZENIEŚ DO ETAPU 2 I WYŚLIJ EMBED
-        if etap_1 and current_cat == etap_1 and etap_2:
-            await ctx.channel.edit(category=etap_2)
-            
-            embed_etap2 = discord.Embed(
-                title="⚔️ PRZEJŚCIE DO ETAPU 2",
-                description=f"{user_mention}, jak ktoś będzie miał czas, to Ci odpisze w sprawie duelu. W międzyczasie udaj się na kanał głosowy: <#1494791287533076603> lub <#1494791290569621685>",
-                color=discord.Color.orange(),
-                timestamp=datetime.now()
-            )
-            embed_etap2.set_footer(text=f"Serwer: {guild.name}")
-            
-            await ctx.send(embed=embed_etap2)
+        await interaction.response.send_message("✅ Przeniesiono ticket do **Etapu 2**!", ephemeral=True)
+        await channel.send(embed=embed_etap2)
+    
+    # 2. JEŚLI KANAŁ JEST JUŻ W ETAPIE 2 -> FINALIZACJA I USUNIĘCIE TICKETU
+    elif etap_2 and current_cat == etap_2:
+        await interaction.response.defer(ephemeral=True)
         
-        # 2. JEŚLI KANAŁ JEST JUŻ W ETAPIE 2 -> FINALIZACJA I USUNIĘCIE TICKETU
-        elif etap_2 and current_cat == etap_2:
-            r_cz = discord.utils.get(guild.roles, name="「 」Członek")
-            r_re = discord.utils.get(guild.roles, name="║ do rekru")
-            if member:
-                if r_cz: await member.add_roles(r_cz)
-                if r_re: await member.remove_roles(r_re)
+        r_cz = discord.utils.get(guild.roles, name="「 」Członek")
+        r_re = discord.utils.get(guild.roles, name="║ do rekru")
+        if member:
+            if r_cz: await member.add_roles(r_cz)
+            if r_re: await member.remove_roles(r_re)
 
-            # Pobieranie historii wiadomości z kanału
-            history_messages = []
-            async for message in ctx.channel.history(limit=100, oldest_first=True):
-                time_str = message.created_at.strftime("%H:%M:%S")
-                history_messages.append(f"**[{time_str}] {message.author.name}:** {message.content}")
-            
-            transcript_text = "\n".join(history_messages)
-            if len(transcript_text) > 4000:
-                transcript_text = transcript_text[-4000:]
-
-            # Tworzenie ładnego embeda z historią dla administratora
-            embed = discord.Embed(
-                title=f"✅ Zaakceptowany Ticket: {ctx.channel.name}",
-                description=transcript_text if transcript_text else "Brak wiadomości w tickecie.",
-                color=discord.Color.green(),
-                timestamp=datetime.now()
-            )
-            embed.set_footer(text=f"Serwer: {guild.name}")
-
-            # Wysłanie embeda na PW do osoby wpisującej drugie !acc
-            try:
-                await ctx.author.send(embed=embed)
-            except discord.Forbidden:
-                pass
-
-            # Usunięcie kanału ticketa
-            await ctx.channel.delete()
-
-@bot.command()
-async def odrz(ctx):
-    if "🎫-" in ctx.channel.name:
-        u_name = ctx.channel.name.replace("🎫-", "")
-        member = discord.utils.get(ctx.guild.members, name=u_name)
-
-        # Pobieranie historii wiadomości z kanału
         history_messages = []
-        async for message in ctx.channel.history(limit=100, oldest_first=True):
+        async for message in channel.history(limit=100, oldest_first=True):
             time_str = message.created_at.strftime("%H:%M:%S")
             history_messages.append(f"**[{time_str}] {message.author.name}:** {message.content}")
         
@@ -365,25 +347,110 @@ async def odrz(ctx):
         if len(transcript_text) > 4000:
             transcript_text = transcript_text[-4000:]
 
-        # Tworzenie ładnego embeda z historią dla gracza
         embed = discord.Embed(
-            title=f"❌ Historia odrzuconego ticketa: {ctx.channel.name}",
+            title=f"✅ Zaakceptowany Ticket: {channel.name}",
             description=transcript_text if transcript_text else "Brak wiadomości w tickecie.",
+            color=discord.Color.green(),
+            timestamp=datetime.now()
+        )
+        embed.set_footer(text=f"Serwer: {guild.name}")
+
+        try:
+            await interaction.user.send(embed=embed)
+        except discord.Forbidden:
+            pass
+
+        await send_log(guild, f"✅ Ticket **{channel.name}** został zaakceptowany przez {interaction.user.mention}.")
+        await channel.delete()
+
+@bot.tree.command(name="odrz", description="Odrzuć ticket i usuń kanał")
+async def odrz(interaction: discord.Interaction):
+    channel = interaction.channel
+    if "🎫-" not in channel.name:
+        await interaction.response.send_message("❌ Ta komenda może być używana tylko na kanałach ticketów!", ephemeral=True)
+        return
+
+    await interaction.response.defer(ephemeral=True)
+    u_name = channel.name.replace("🎫-", "")
+    member = discord.utils.get(interaction.guild.members, name=u_name)
+
+    history_messages = []
+    async for message in channel.history(limit=100, oldest_first=True):
+        time_str = message.created_at.strftime("%H:%M:%S")
+        history_messages.append(f"**[{time_str}] {message.author.name}:** {message.content}")
+    
+    transcript_text = "\n".join(history_messages)
+    if len(transcript_text) > 4000:
+        transcript_text = transcript_text[-4000:]
+
+    embed = discord.Embed(
+        title=f"❌ Historia odrzuconego ticketa: {channel.name}",
+        description=transcript_text if transcript_text else "Brak wiadomości w tickecie.",
+        color=discord.Color.red(),
+        timestamp=datetime.now()
+    )
+    embed.set_footer(text=f"Serwer: {interaction.guild.name}")
+
+    if member:
+        try:
+            await member.send(embed=embed)
+        except discord.Forbidden:
+            pass
+
+    await send_log(interaction.guild, f"❌ Ticket **{channel.name}** został odrzucony przez {interaction.user.mention}.")
+    await channel.delete()
+
+# --- NOWE KOMENDY: MODERACJA BAN & WARN ---
+
+@bot.tree.command(name="ban", description="Zbanuj gracza z serwera")
+@app_commands.checks.has_permissions(ban_members=True)
+@app_commands.describe(member="Wybierz członka do zbanowania", reason="Powód zbanowania")
+async def ban(interaction: discord.Interaction, member: discord.Member, reason: str = "Brak powodu"):
+    if member.top_role >= interaction.user.top_role and interaction.guild.owner != interaction.user:
+        await interaction.response.send_message("❌ Nie możesz zbanować osoby z wyższą lub równą rangą!", ephemeral=True)
+        return
+    
+    try:
+        await member.ban(reason=f"{reason} (Zbanowany przez: {interaction.user.name})")
+        
+        embed = discord.Embed(
+            title="🔨 ZBANOWANO GRACZA",
+            description=f"**Gracz:** {member.mention} (`{member.name}`)\n**Powód:** {reason}\n**Moderator:** {interaction.user.mention}",
             color=discord.Color.red(),
             timestamp=datetime.now()
         )
-        embed.set_footer(text=f"Serwer: {ctx.guild.name}")
+        await interaction.response.send_message(embed=embed)
+        await send_log(interaction.guild, f"🔨 **ZBANOWANO:** {member.mention} przez {interaction.user.mention}. Powód: {reason}")
+    except Exception as e:
+        await interaction.response.send_message(f"❌ Wystąpił błąd przy próbie zbanowania: {e}", ephemeral=True)
 
-        # Wysłanie embeda na PW do gracza
-        if member:
-            try:
-                await member.send(embed=embed)
-            except discord.Forbidden:
-                pass
+@bot.tree.command(name="warn", description="Daj ostrzeżenie (warn) graczowi")
+@app_commands.checks.has_permissions(manage_messages=True)
+@app_commands.describe(member="Wybierz członka do ostrzeżenia", reason="Powód ostrzeżenia")
+async def warn(interaction: discord.Interaction, member: discord.Member, reason: str = "Brak powodu"):
+    embed = discord.Embed(
+        title="⚠️ OSTRZEŻENIE (WARN)",
+        description=f"**Użytkownik:** {member.mention}\n**Powód:** {reason}\n**Moderator:** {interaction.user.mention}",
+        color=discord.Color.gold(),
+        timestamp=datetime.now()
+    )
+    await interaction.response.send_message(embed=embed)
+    
+    # Powiadomienie na PW do ukaranego gracza
+    try:
+        await member.send(f"⚠️ Otrzymałeś ostrzeżenie na serwerze **{interaction.guild.name}**!\n**Powód:** {reason}\n**Moderator:** {interaction.user.name}")
+    except discord.Forbidden:
+        pass
 
-        # Usunięcie kanału ticketa
-        await ctx.channel.delete()
+    await send_log(interaction.guild, f"⚠️ **WARN:** {member.mention} otrzymał ostrzeżenie od {interaction.user.mention}. Powód: {reason}")
 
+# --- OBSŁUGA BŁĘDÓW BRAKU UPRAWNIEŃ ---
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    if isinstance(error, app_commands.MissingPermissions):
+        await interaction.response.send_message("❌ Nie posiadasz odpowiednich uprawnień do użycia tej komendy!", ephemeral=True)
+    else:
+        print(f"Błąd komendy Slash: {error}")
 
 # --- PANEL WWW (FLASK) ---
 HTML_TEMPLATE = '''
