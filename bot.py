@@ -79,21 +79,21 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
         max_length=10
     )
     q9 = discord.ui.TextInput(
-        label="9. Podaj 3 ostatnie gildie",
+        label="3. Podaj 3 ostatnie gildie",
         placeholder="Napisz w jakich 3 gildiach ostatnio grałeś...",
         style=discord.TextStyle.paragraph,
         required=True,
         max_length=200
     )
     q10 = discord.ui.TextInput(
-        label="10. Dlaczego my?",
+        label="4. Dlaczego my?",
         placeholder="Dlaczego chcesz dołączyć akurat do nas...",
         style=discord.TextStyle.paragraph,
         required=True,
         max_length=300
     )
     q13 = discord.ui.TextInput(
-        label="13. Czy znasz kogoś?",
+        label="5. Czy znasz kogoś?",
         placeholder="Wpisz kogo znasz z gildii...",
         style=discord.TextStyle.short,
         required=True,
