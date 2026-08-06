@@ -35,6 +35,20 @@ async def send_log(guild, message):
         )
         await log_channel.send(embed=embed)
 
+# --- SPRAWDZANIE UPRAWNIEŃ (ELASTYCZNE) ---
+def has_management_permission(member: discord.Member) -> bool:
+    if member == member.guild.owner:
+        return True
+    if member.guild_permissions.administrator:
+        return True
+    
+    allowed_keywords = ["szef", "zarząd", "rekruter"]
+    for role in member.roles:
+        role_lower = role.name.lower()
+        if any(keyword in role_lower for keyword in allowed_keywords):
+            return True
+    return False
+
 # --- MECHANIZM KEEP-ALIVE ---
 @tasks.loop(minutes=10)
 async def keep_alive_ping():
@@ -367,10 +381,7 @@ async def dashboard(interaction: discord.Interaction):
 
 @bot.tree.command(name="acc", description="Akceptuje podanie gracza i nadaje rangę członek")
 async def acc(interaction: discord.Interaction):
-    allowed_roles = ["「 」SZEF", "Zarząd", "Test Zarząd", "Rekruter"]
-    has_perm = any(role.name in allowed_roles for role in interaction.user.roles) or interaction.user.guild_permissions.administrator
-    
-    if not has_perm:
+    if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Nie masz uprawnień do akceptowania podań!", ephemeral=True)
         return
 
@@ -410,10 +421,7 @@ async def acc(interaction: discord.Interaction):
 
 @bot.tree.command(name="odrz", description="Odrzuca kandydata i zamyka ticket")
 async def odrz(interaction: discord.Interaction):
-    allowed_roles = ["「 」SZEF", "Zarząd", "Test Zarząd", "Rekruter"]
-    has_perm = any(role.name in allowed_roles for role in interaction.user.roles) or interaction.user.guild_permissions.administrator
-    
-    if not has_perm:
+    if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Nie masz uprawnień do odrzucania podań!", ephemeral=True)
         return
 
