@@ -280,7 +280,7 @@ class SendEmbedModal(discord.ui.Modal, title="📩 Wyślij wiadomość w ramce")
 class RegulaminModal(discord.ui.Modal, title="⚙️ Konfiguracja Regulaminu"):
     content = discord.ui.TextInput(label="Treść regulaminu", style=discord.TextStyle.paragraph, required=True, max_length=4000)
 
-    async def __init__(self):
+    def __init__(self):
         super().__init__()
         cfg = load_config()
         self.content.default = cfg.get("regulamin_content", "")
@@ -568,7 +568,7 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- BEZPIECZNA KOMENDA /AI Z FALLBACKIEM MODELI ---
+# --- ZAAWANSOWANA KOMENDA /AI Z WYKONYWANIEM AKCJI (TWORZENIE KANAŁÓW) ---
 @bot.tree.command(name="ai", description="Wydaj polecenie asystentowi AI (może też tworzyć kanały!)")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
@@ -579,7 +579,7 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
 
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_key:
-        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych!")
+        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych Render!")
         return
 
     try:
@@ -600,7 +600,6 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
         success = False
         used_model = ""
 
-        # Instrukcja systemowa, która mówi AI, jak ma reagować na polecenia tworzenia
         system_instruction = (
             "Jesteś zaawansowanym asystentem administracyjnym serwera Discord. "
             "Jeśli użytkownik poprosi Cię o stworzenie kanału tekstowego lub głosowego, "
@@ -625,34 +624,31 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
             full_text = response.text
             akcja_info = ""
 
-            # Sprawdzamy czy AI zdecydowało się stworzyć kanał tekstowy
             if "[AKCJA: TEKSTOWY |" in full_text:
                 try:
                     channel_name = full_text.split("[AKCJA: TEKSTOWY |")[1].split("]")[0].strip()
-                    # Tworzymy kanał na serwerze!
                     await interaction.guild.create_text_channel(channel_name)
                     akcja_info = f"\n\n✨ *(Wykonano: Automatycznie utworzyłem kanał tekstowy **{channel_name}**)*"
-                    full_text = full_text.split("[AKCJA:")[0] # Usuwamy znacznik z widoku wiadomości
+                    full_text = full_text.split("[AKCJA:")[0]
                 except Exception as e:
-                    akcja_info = f"\n\n⚠️ *(Próbowałem utworzyć kanał, ale wystąpił błąd uprawnień: {e})*"
+                    akcja_info = f"\n\n⚠️ *(Próbowałem utworzyć kanał, ale wystąpił błąd: {e})*"
 
-            # Sprawdzamy czy AI zdecydowało się stworzyć kanał głosowy
             elif "[AKCJA: GLOSOWY |" in full_text:
                 try:
                     channel_name = full_text.split("[AKCJA: GLOSOWY |")[1].split("]")[0].strip()
-                    # Tworzymy kanał głosowy na serwerze!
                     await interaction.guild.create_voice_channel(channel_name)
                     akcja_info = f"\n\n✨ *(Wykonano: Automatycznie utworzyłem kanał głosowy **{channel_name}**)*"
                     full_text = full_text.split("[AKCJA:")[0]
                 except Exception as e:
-                    akcja_info = f"\n\n⚠️ *(Próbowałem utworzyć kanał głosowy, ale wystąpił błąd uprawnień: {e})*"
+                    akcja_info = f"\n\n⚠️ *(Próbowałem utworzyć kanał głosowy, ale wystąpił błąd: {e})*"
 
             await interaction.followup.send(f"🤖 **AI ({used_model}):** {full_text}{akcja_info}")
         else:
             await interaction.followup.send("❌ Wszystkie dostępne modele AI odrzuciły zapytanie.")
             
     except Exception as e:
-        await interaction.followup.send(f"❌ Błąd AI: `{str(e)}`")
+        await interaction.followup.send(f"❌ Wystąpił błąd krytyczny: `{str(e)}`")
+
 # --- KOMENDA PRZERZUCANIA UŻYTKOWNIKÓW ---
 @bot.tree.command(name="przerzuc", description="Przerzuca wszystkich użytkowników z jednego kanału głosowego na drugi")
 @app_commands.checks.has_permissions(move_members=True, administrator=True)
@@ -674,9 +670,9 @@ async def cmd_przerzuc(interaction: discord.Interaction, zrodlo: discord.VoiceCh
     await interaction.followup.send(f"✅ Pomyślnie przerzucono **{przeniesieni}** użytkowników z kanału **{zrodlo.name}** na **{cel.name}**!", ephemeral=True)
     await send_log(interaction.guild, f"🔄 **PRZERZUCENIE:** Administrator {interaction.user.mention} przeniósł {przeniesieni} osób z kanału `{zrodlo.name}` na `{cel.name}`.")
 
-# --- POZOSTAŁE KOMENDY ZARZĄDU ---
+# --- KOMENDY ZARZĄDU ORAZ ZAKTUALIZOWANE ACC (ETAP 2) ---
 
-@bot.tree.command(name="acc", description="Akceptuje podanie")
+@bot.tree.command(name="acc", description="Akceptuje podanie lub przenosi do ETAPU 2")
 async def acc(interaction: discord.Interaction):
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Brak uprawnień!", ephemeral=True)
@@ -695,8 +691,17 @@ async def acc(interaction: discord.Interaction):
             try: await interaction.channel.edit(category=etap2_cat)
             except Exception: pass
 
-        embed = discord.Embed(title="⚔️ PRZEJŚCIE DO ETAPU 2", description="Udaj się na kanał głosowy rekrutacyjny.", color=discord.Color.orange(), timestamp=datetime.now())
-        await interaction.response.send_message(embed=embed)
+        embed = discord.Embed(
+            title="⚔️ PRZEJŚCIE DO ETAPU 2",
+            description=(
+                f"Witaj {target.mention}!\n\n"
+                "Jak ktoś będzie miał czas, to Ci odpisze w sprawie dueli. "
+                "Gdy ktoś ci napisze ze masz czas wtedy i spinguj kogos udaj się na kanał głosowy: <#1494791287533076603> lub <#1494791290569621685>"
+            ),
+            color=discord.Color.orange(),
+            timestamp=datetime.now()
+        )
+        await interaction.response.send_message(content=target.mention, embed=embed)
         await send_log(interaction.guild, f"🔄 **ETAP 2:** Kandydat {target.mention} przeniesiony przez {interaction.user.mention}.")
     else:
         r_czlonek = discord.utils.get(interaction.guild.roles, name="「 」Członek")
@@ -707,7 +712,7 @@ async def acc(interaction: discord.Interaction):
         if r_do_rekru and r_do_rekru in target.roles: await target.remove_roles(r_do_rekru)
         if r_ticket and r_ticket in target.roles: await target.remove_roles(r_ticket)
 
-        success = await send_transcript_dm(interaction.user, interaction.channel)
+        await send_transcript_dm(interaction.user, interaction.channel)
         embed = discord.Embed(title="🎉 ZAAKCEPTOWANE (FINAŁ)!", description=f"Kandydat {target.mention} przyjęty przez {interaction.user.mention}!", color=discord.Color.green(), timestamp=datetime.now())
         await interaction.response.send_message(embed=embed)
         await send_log(interaction.guild, f"✅ **FINAŁ:** Użytkownik {target.mention} przyjęty.")
