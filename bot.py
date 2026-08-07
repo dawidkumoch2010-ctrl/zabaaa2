@@ -568,7 +568,7 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- NAPRAWIONA I ZABEZPIECZONA KOMENDA /AI ---
+# --- NAPRAWIONA KOMENDA /AI Z AKTUALNYMI MODELAMI ---
 @bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
@@ -585,29 +585,14 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     try:
         genai.configure(api_key=gemini_key)
         
-        # Dynamiczne pobranie dostępnego modelu z API Google
-        available_model = None
-        try:
-            for m in genai.list_models():
-                if 'generateContent' in m.supported_generation_methods:
-                    available_model = m.name
-                    break
-        except Exception as list_err:
-            print(f"⚠️ [AI] Błąd podczas pobierania listy modeli: {list_err}")
-
-        # Budowanie unikalnej listy modeli do przetestowania (dynamiczny + domyślne fallbacki)
-        models_to_try = [available_model] if available_model else []
-        models_to_try.extend(['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'])
-        
-        # Usunięcie duplikatów z zachowaniem kolejności
-        seen = set()
-        unique_models = [x for x in models_to_try if x and not (x in seen or seen.add(x))]
+        # Lista nowoczesnych modeli obsługujących generowanie treści
+        models_to_try = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
 
         response = None
         success = False
         last_error = ""
 
-        for model_name in unique_models:
+        for model_name in models_to_try:
             try:
                 print(f"🤖 [AI] Próbuję użyć modelu: {model_name}")
                 model = genai.GenerativeModel(model_name)
