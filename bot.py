@@ -568,7 +568,7 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- NAPRAWIONA KOMENDA /AI Z BEZPIECZNĄ LISTĄ MODELI ---
+# --- NAPRAWIONA I ZABEZPIECZONA KOMENDA /AI ---
 @bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
@@ -585,13 +585,31 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     try:
         genai.configure(api_key=gemini_key)
         
-        # Bezpieczna lista stabilnych modeli do sprawdzenia po kolei
-        models_to_try = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
+        # Dynamiczne pobranie dostępnego modelu z API Google
+        available_model = None
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    available_model = m.name
+                    break
+        except Exception as list_err:
+            print(f"⚠️ [AI] Błąd podczas pobierania listy modeli: {list_err}")
+
+        # Budowanie unikalnej listy modeli do przetestowania (dynamiczny + domyślne fallbacki)
+        models_to_try = [available_model] if available_model else []
+        models_to_try.extend(['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro'])
+        
+        # Usunięcie duplikatów z zachowaniem kolejności
+        seen = set()
+        unique_models = [x for x in models_to_try if x and not (x in seen or seen.add(x))]
+
         response = None
         success = False
-        
-        for model_name in models_to_try:
+        last_error = ""
+
+        for model_name in unique_models:
             try:
+                print(f"🤖 [AI] Próbuję użyć modelu: {model_name}")
                 model = genai.GenerativeModel(model_name)
                 response = model.generate_content(
                     f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}"
@@ -599,13 +617,15 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
                 if response and response.text:
                     success = True
                     break
-            except Exception:
+            except Exception as e:
+                last_error = str(e)
+                print(f"⚠️ [AI] Model {model_name} odrzucił żądanie: {e}")
                 continue
         
         if success and response and response.text:
             await interaction.followup.send(f"🤖 **AI:** {response.text}")
         else:
-            await interaction.followup.send("❌ Nie udało się uzyskać odpowiedzi od żadnego dostępnego modelu AI.")
+            await interaction.followup.send(f"❌ Nie udało się uzyskać odpowiedzi od żadnego modelu. Ostatni błąd: `{last_error}`")
             
     except Exception as e:
         await interaction.followup.send(f"❌ Wystąpił błąd krytyczny podczas komunikacji z AI: `{str(e)}`")
