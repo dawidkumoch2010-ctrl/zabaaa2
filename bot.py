@@ -585,26 +585,42 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     try:
         genai.configure(api_key=gemini_key)
         
-        # Automatyczne wykrywanie modelu - to klucz do rozwiązania Twojego problemu
-        available_model = None
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                available_model = m.name
-                break # Bierze pierwszy dostępny
+        # Lista sprawdzonych modeli bazowych + próba pobrania dynamicznych
+        models_to_test = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
         
-        if not available_model:
-            await interaction.followup.send("❌ Nie znaleziono dostępnego modelu AI dla tego klucza.")
-            return
+        try:
+            for m in genai.list_models():
+                if 'generateContent' in m.supported_generation_methods:
+                    name = m.name.replace("models/", "")
+                    # Odrzucamy problematyczne wersje eksperymentalne/zablokowane
+                    if "2.5" not in name and name not in models_to_test:
+                        models_to_test.insert(0, name)
+        except Exception:
+            pass
 
-        model = genai.GenerativeModel(available_model)
-        response = model.generate_content(
-            f"Jesteś asystentem administracyjnym. Użytkownik napisał: {prompt}"
-        )
-        
-        if response and response.text:
-            await interaction.followup.send(f"🤖 **AI ({available_model}):** {response.text}")
+        response = None
+        success = False
+        used_model = ""
+
+        for model_name in models_to_test:
+            try:
+                clean_name = model_name.replace("models/", "")
+                model = genai.GenerativeModel(clean_name)
+                response = model.generate_content(
+                    f"Jesteś asystentem administracyjnym. Użytkownik napisał: {prompt}"
+                )
+                if response and response.text:
+                    used_model = clean_name
+                    success = True
+                    break
+            except Exception as e:
+                print(f"⚠️ Model {model_name} niedostępny, próbuję kolejny... Błąd: {e}")
+                continue
+
+        if success and response and response.text:
+            await interaction.followup.send(f"🤖 **AI ({used_model}):** {response.text}")
         else:
-            await interaction.followup.send("❌ Model nie zwrócił odpowiedzi.")
+            await interaction.followup.send("❌ Wszystkie dostępne modele AI odrzuciły zapytanie. Sprawdź ważność i uprawnienia swojego klucza API.")
             
     except Exception as e:
         await interaction.followup.send(f"❌ Błąd AI: `{str(e)}`")
