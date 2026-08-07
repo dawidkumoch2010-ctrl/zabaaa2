@@ -28,7 +28,6 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def send_transcript_dm(member: discord.Member, channel: discord.TextChannel):
     transcript_lines = []
     async for message in channel.history(limit=100, oldest_first=True):
-        # Sprawdzanie czy wiadomość zawiera embed z podaniem
         if message.embeds:
             for embed in message.embeds:
                 if embed.title and "PODANIE REKRUTACYJNE" in embed.title:
@@ -39,7 +38,6 @@ async def send_transcript_dm(member: discord.Member, channel: discord.TextChanne
                         transcript_lines.append(f"• **{field.name}** {field.value}")
                     transcript_lines.append("-" * 30)
 
-        # Zwykłe wiadomości tekstowe od użytkowników
         if not message.author.bot and message.content:
             transcript_lines.append(f"**{message.author.display_name}**: {message.content}")
     
@@ -101,7 +99,7 @@ def get_ticket_target(channel: discord.TextChannel, moderator: discord.Member):
             break
     return target
 
-# --- FORMULARZ PODANIA (NUMERACJA 1, 2, 3, 4, 5) ---
+# --- FORMULARZ PODANIA ---
 
 class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
     q1 = discord.ui.TextInput(label="1. Nick z Minecrafta", placeholder="Twój nick...", style=discord.TextStyle.short, required=True, max_length=32)
@@ -219,6 +217,7 @@ class TicketView(discord.ui.View):
         r_zarzad = discord.utils.get(guild.roles, name="Zarząd")
         r_test_zarzad = discord.utils.get(guild.roles, name="Test Zarząd")
         r_szef = discord.utils.get(guild.roles, name="「 」SZEF")
+        r_rekruter = discord.utils.get(guild.roles, name="Rekruter")
 
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(view_channel=False),
@@ -226,7 +225,7 @@ class TicketView(discord.ui.View):
             guild.me: discord.PermissionOverwrite(view_channel=True, send_messages=True)
         }
         
-        for role in [r_ticket, r_zarzad, r_test_zarzad, r_szef]:
+        for role in [r_ticket, r_zarzad, r_test_zarzad, r_szef, r_rekruter]:
             if role: overwrites[role] = discord.PermissionOverwrite(view_channel=True, send_messages=True, read_message_history=True)
 
         channel = await guild.create_text_channel(f"🎫-{interaction.user.name}", category=cat, overwrites=overwrites)
@@ -373,9 +372,9 @@ async def acc(interaction: discord.Interaction):
                 pass
 
         embed = discord.Embed(
-            title="🎉 PODANIE ZAAKCEPTOWANE!",
-            description=f"Kandydat {target.mention} pomyślnie przeszedł rekrutację i został **PRZYJĘTY** do gildii przez {interaction.user.mention}!",
-            color=discord.Color.green(),
+            title="⚔️ PRZEJŚCIE DO ETAPU 2",
+            description="Jak ktoś będzie miał czas, to Ci odpisze w sprawie duelu. Gdy ci napiszą, udaj się na kanał głosowy: <#1494791287533076603> lub <#1494791290569621685>",
+            color=discord.Color.orange(),
             timestamp=datetime.now()
         )
         await interaction.response.send_message(embed=embed)
