@@ -579,42 +579,35 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
 
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_key:
-        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych Render!")
+        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych!")
         return
 
     try:
         genai.configure(api_key=gemini_key)
         
-        # Lista nowoczesnych modeli obsługujących generowanie treści
-        models_to_try = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-1.5-pro']
-
-        response = None
-        success = False
-        last_error = ""
-
-        for model_name in models_to_try:
-            try:
-                print(f"🤖 [AI] Próbuję użyć modelu: {model_name}")
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(
-                    f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}"
-                )
-                if response and response.text:
-                    success = True
-                    break
-            except Exception as e:
-                last_error = str(e)
-                print(f"⚠️ [AI] Model {model_name} odrzucił żądanie: {e}")
-                continue
+        # Automatyczne wykrywanie modelu - to klucz do rozwiązania Twojego problemu
+        available_model = None
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                available_model = m.name
+                break # Bierze pierwszy dostępny
         
-        if success and response and response.text:
-            await interaction.followup.send(f"🤖 **AI:** {response.text}")
+        if not available_model:
+            await interaction.followup.send("❌ Nie znaleziono dostępnego modelu AI dla tego klucza.")
+            return
+
+        model = genai.GenerativeModel(available_model)
+        response = model.generate_content(
+            f"Jesteś asystentem administracyjnym. Użytkownik napisał: {prompt}"
+        )
+        
+        if response and response.text:
+            await interaction.followup.send(f"🤖 **AI ({available_model}):** {response.text}")
         else:
-            await interaction.followup.send(f"❌ Nie udało się uzyskać odpowiedzi od żadnego modelu. Ostatni błąd: `{last_error}`")
+            await interaction.followup.send("❌ Model nie zwrócił odpowiedzi.")
             
     except Exception as e:
-        await interaction.followup.send(f"❌ Wystąpił błąd krytyczny podczas komunikacji z AI: `{str(e)}`")
-
+        await interaction.followup.send(f"❌ Błąd AI: `{str(e)}`")
 # --- POZOSTAŁE KOMENDY ZARZĄDU ---
 
 @bot.tree.command(name="acc", description="Akceptuje podanie")
