@@ -7,6 +7,7 @@ import os
 import threading
 import aiohttp
 from flask import Flask
+import json
 
 # --- KONFIGURACJA SERWERA WWW (FLASK) ---
 app = Flask(__name__)
@@ -24,8 +25,27 @@ def run_flask():
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- FUNKCJA DO POBIERANIA HISTORII WRAZ Z PODANIEM ---
-async def send_transcript_dm(member: discord.Member, channel: discord.TextChannel):
+# --- SYSTEM ARCHIWIZACJI TICKETÓW ---
+ARCHIVE_FILE = "ticket_archive.json"
+
+def load_archive():
+    if os.path.exists(ARCHIVE_FILE):
+        try:
+            with open(ARCHIVE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def save_archive(archive_data):
+    try:
+        with open(ARCHIVE_FILE, "w", encoding="utf-8") as f:
+            json.dump(archive_data, f, ensure_ascii=False, indent=4)
+    except Exception as e:
+        print(f"⚠️ [ARCHIWUM] Błąd zapisu: {e}")
+
+# --- FUNKCJE POMOCNICZE DO TRANSKRYPTÓW ---
+async def get_transcript_text(channel: discord.TextChannel):
     transcript_lines = []
     async for message in channel.history(limit=100, oldest_first=True):
         if message.embeds:
@@ -46,7 +66,11 @@ async def send_transcript_dm(member: discord.Member, channel: discord.TextChanne
     if len(transcript_text) > 4000:
         transcript_text = transcript_text[-4000:] 
         transcript_text = "...(historia zbyt długa, wyświetlam końcówkę)...\n" + transcript_text
+    
+    return transcript_text
 
+async def send_transcript_dm(member: discord.Member, channel: discord.TextChannel):
+    transcript_text = await get_transcript_text(channel)
     embed = discord.Embed(
         title=f"📜 Historia rozmowy z ticketa: {channel.name}",
         description=transcript_text,
@@ -247,6 +271,43 @@ class VerifyView(discord.ui.View):
         if role: await interaction.user.add_roles(role)
         await interaction.response.send_message("✅ Nadano rangę do rekrutacji!", ephemeral=True)
 
+# --- WIDOK DLA STARYCH TICKETÓW (POKAZUJE NICHI GRACZY) ---
+
+class OldTicketsSelect(discord.ui.Select):
+    def __init__(self, tickets):
+        options = []
+        for idx, t in enumerate(tickets[-25:]):
+            display_name = t.get("user_name", "Nieznany")
+            label = f"{display_name} ({t['closed_at']})"[:100]
+            options.append(discord.SelectOption(label=label, value=str(idx)))
+        super().__init__(placeholder="Wybierz użytkownika, którego ticket chcesz odczytać...", min_values=1, max_values=1, options=options)
+        self.tickets = tickets[-25:]
+
+    async def callback(self, interaction: discord.Interaction):
+        selected_idx = int(self.values[0])
+        ticket = self.tickets[selected_idx]
+        
+        transcript_text = ticket["transcript"]
+
+        embed = discord.Embed(
+            title=f"📜 Archiwalny ticket gracza: {ticket.get('user_name', 'Nieznany')}",
+            description=transcript_text,
+            color=discord.Color.blue(),
+            timestamp=datetime.now()
+        )
+        embed.set_footer(text=f"Kanał: {ticket['name']} | Zamknięto: {ticket['closed_at']}")
+
+        try:
+            await interaction.user.send(embed=embed)
+            await interaction.response.send_message("✅ Transkrypt starego ticketu został wysłany na Twój PV!", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ Nie mogę wysłać wiadomości prywatnej (masz zablokowane DM).", ephemeral=True)
+
+class OldTicketsView(discord.ui.View):
+    def __init__(self, tickets):
+        super().__init__(timeout=60)
+        self.add_item(OldTicketsSelect(tickets))
+
 # --- BOT EVENTS & SYNCHRONIZACJA ---
 
 @bot.event
@@ -432,7 +493,7 @@ async def odrz(interaction: discord.Interaction):
     await interaction.response.send_message(embed=embed)
     await send_log(interaction.guild, f"❌ **ODRZUCENIE:** Kandydat {target.mention} odrzucony przez {interaction.user.mention}.")
 
-@bot.tree.command(name="zamknij", description="Zamyka i usuwa obecny ticket")
+@bot.tree.command(name="zamknij", description="Zamyka, archiwizuje i usuwa obecny ticket")
 async def zamknij(interaction: discord.Interaction):
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Brak uprawnień!", ephemeral=True)
@@ -442,9 +503,36 @@ async def zamknij(interaction: discord.Interaction):
         await interaction.response.send_message("❌ Ta komenda działa tylko na kanałach ticketów!", ephemeral=True)
         return
         
-    await interaction.response.send_message("🔒 **Ticket zostanie usunięty za 5 sekund...**")
+    target = get_ticket_target(interaction.channel, interaction.user)
+    user_name = target.display_name if target else "Nieznany"
+    
+    transcript_text = await get_transcript_text(interaction.channel)
+    archive = load_archive()
+    archive.append({
+        "name": interaction.channel.name,
+        "user_name": user_name,
+        "closed_at": datetime.now().strftime('%Y-%m-%d %H:%M'),
+        "transcript": transcript_text
+    })
+    save_archive(archive)
+
+    await interaction.response.send_message("🔒 **Ticket zostanie zarchiwizowany i usunięty za 5 sekund...**")
     await asyncio.sleep(5)
     await interaction.channel.delete()
+
+@bot.tree.command(name="stareticekty", description="Pokazuje listę dawnych ticketów do wysłania na PV (z nickami graczy)")
+async def stareticekty(interaction: discord.Interaction):
+    if not has_management_permission(interaction.user):
+        await interaction.response.send_message("❌ Brak uprawnień!", ephemeral=True)
+        return
+
+    archive = load_archive()
+    if not archive:
+        await interaction.response.send_message("❌ Brak zarchiwizowanych ticketów w bazie.", ephemeral=True)
+        return
+
+    view = OldTicketsView(archive)
+    await interaction.response.send_message("📁 **Wybierz gracza z poniższej listy, aby otrzymać transkrypt jego ticketu na PV:**", view=view, ephemeral=True)
 
 @bot.tree.command(name="klepa", description="Wysyła ogłoszenie mobilizacji na klepę")
 async def klepa(interaction: discord.Interaction, opis: str = "Przebijają nas, wbijajcie!"):
