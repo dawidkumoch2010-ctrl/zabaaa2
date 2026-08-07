@@ -568,32 +568,29 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- NAPRAWIONA KOMENDA /AI Z AKTUALNYMI MODELAMI ---
-@bot.tree.command(name="check", description="Sprawdza uprawnienia bota")
-async def check(interaction: discord.Interaction):
-    bot_member = interaction.guild.get_member(bot.user.id)
-    perms = bot_member.guild_permissions
-    await interaction.response.send_message(f"Czy bot ma Administratora? {perms.administrator}", ephemeral=True)
-    return
+# --- BEZPIECZNA KOMENDA /AI Z FALLBACKIEM MODELI ---
+@bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
+async def ai_command(interaction: discord.Interaction, prompt: str):
+    if not has_management_permission(interaction.user):
+        await interaction.response.send_message("❌ Nie masz uprawnień zarządu do używania asystenta AI!", ephemeral=True)
+        return
 
     await interaction.response.defer()
 
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_key:
-        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych!")
+        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych Render!")
         return
 
     try:
         genai.configure(api_key=gemini_key)
         
-        # Lista sprawdzonych modeli bazowych + próba pobrania dynamicznych
         models_to_test = ['gemini-1.5-flash', 'gemini-1.5-pro', 'gemini-pro']
         
         try:
             for m in genai.list_models():
                 if 'generateContent' in m.supported_generation_methods:
                     name = m.name.replace("models/", "")
-                    # Odrzucamy problematyczne wersje eksperymentalne/zablokowane
                     if "2.5" not in name and name not in models_to_test:
                         models_to_test.insert(0, name)
         except Exception:
@@ -608,7 +605,7 @@ async def check(interaction: discord.Interaction):
                 clean_name = model_name.replace("models/", "")
                 model = genai.GenerativeModel(clean_name)
                 response = model.generate_content(
-                    f"Jesteś asystentem administracyjnym. Użytkownik napisał: {prompt}"
+                    f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}"
                 )
                 if response and response.text:
                     used_model = clean_name
@@ -624,7 +621,29 @@ async def check(interaction: discord.Interaction):
             await interaction.followup.send("❌ Wszystkie dostępne modele AI odrzuciły zapytanie. Sprawdź ważność i uprawnienia swojego klucza API.")
             
     except Exception as e:
-        await interaction.followup.send(f"❌ Błąd AI: `{str(e)}`")
+        await interaction.followup.send(f"❌ Wystąpił błąd krytyczny podczas komunikacji z AI: `{str(e)}`")
+
+# --- KOMENDA PRZERZUCANIA UŻYTKOWNIKÓW ---
+@bot.tree.command(name="przerzuc", description="Przerzuca wszystkich użytkowników z jednego kanału głosowego na drugi")
+@app_commands.checks.has_permissions(move_members=True, administrator=True)
+async def cmd_przerzuc(interaction: discord.Interaction, zrodlo: discord.VoiceChannel, cel: discord.VoiceChannel):
+    if not zrodlo.members:
+        await interaction.response.send_message(f"❌ Na kanale źródłowym **{zrodlo.name}** nie ma aktualnie żadnych użytkowników!", ephemeral=True)
+        return
+    
+    await interaction.response.defer(ephemeral=True)
+    
+    przeniesieni = 0
+    for member in zrodlo.members:
+        try:
+            await member.move_to(cel)
+            przeniesieni += 1
+        except Exception as e:
+            print(f"⚠️ Nie udało się przenieść użytkownika {member.name}: {e}")
+            
+    await interaction.followup.send(f"✅ Pomyślnie przerzucono **{przeniesieni}** użytkowników z kanału **{zrodlo.name}** na **{cel.name}**!", ephemeral=True)
+    await send_log(interaction.guild, f"🔄 **PRZERZUCENIE:** Administrator {interaction.user.mention} przeniósł {przeniesieni} osób z kanału `{zrodlo.name}` na `{cel.name}`.")
+
 # --- POZOSTAŁE KOMENDY ZARZĄDU ---
 
 @bot.tree.command(name="acc", description="Akceptuje podanie")
