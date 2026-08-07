@@ -696,7 +696,7 @@ async def acc(interaction: discord.Interaction):
             description=(
                 f"Witaj {target.mention}!\n\n"
                 "Jak ktoś będzie miał czas, to Ci odpisze w sprawie dueli. "
-                "Gdy ktoś ci napisze ze masz czas wtedy i spinguj kogos udaj się na kanał głosowy: <#1494791287533076603> lub <#1494791290569621685>"
+                "Tutaj masz kanały na które możesz wbić na rekrutację <#1494791287533076603> lub <#1494791290569621685>"
             ),
             color=discord.Color.orange(),
             timestamp=datetime.now()
