@@ -569,7 +569,7 @@ async def cmd_urlop(interaction: discord.Interaction):
     await interaction.response.send_modal(UrlopModal())
 
 # --- BEZPIECZNA KOMENDA /AI Z FALLBACKIEM MODELI ---
-@bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
+@bot.tree.command(name="ai", description="Wydaj polecenie asystentowi AI (może też tworzyć kanały!)")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Nie masz uprawnień zarządu do używania asystenta AI!", ephemeral=True)
@@ -579,7 +579,7 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
 
     gemini_key = os.environ.get("GEMINI_API_KEY")
     if not gemini_key:
-        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych Render!")
+        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych!")
         return
 
     try:
@@ -600,29 +600,59 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
         success = False
         used_model = ""
 
+        # Instrukcja systemowa, która mówi AI, jak ma reagować na polecenia tworzenia
+        system_instruction = (
+            "Jesteś zaawansowanym asystentem administracyjnym serwera Discord. "
+            "Jeśli użytkownik poprosi Cię o stworzenie kanału tekstowego lub głosowego, "
+            "oprócz normalnej odpowiedzi tekstowej dopisz na samym końcu nową linię w dokładnie takim formacie: "
+            "[AKCJA: TEKSTOWY | nazwa-kanalu] lub [AKCJA: GLOSOWY | nazwa-kanalu]. "
+            "Jeśli użytkownik o nic takiego nie prosi, nie dopisuj tego znacznika."
+        )
+
         for model_name in models_to_test:
             try:
                 clean_name = model_name.replace("models/", "")
                 model = genai.GenerativeModel(clean_name)
-                response = model.generate_content(
-                    f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}"
-                )
+                response = model.generate_content(f"{system_instruction}\n\nUżytkownik napisał: {prompt}")
                 if response and response.text:
                     used_model = clean_name
                     success = True
                     break
             except Exception as e:
-                print(f"⚠️ Model {model_name} niedostępny, próbuję kolejny... Błąd: {e}")
                 continue
 
         if success and response and response.text:
-            await interaction.followup.send(f"🤖 **AI ({used_model}):** {response.text}")
+            full_text = response.text
+            akcja_info = ""
+
+            # Sprawdzamy czy AI zdecydowało się stworzyć kanał tekstowy
+            if "[AKCJA: TEKSTOWY |" in full_text:
+                try:
+                    channel_name = full_text.split("[AKCJA: TEKSTOWY |")[1].split("]")[0].strip()
+                    # Tworzymy kanał na serwerze!
+                    await interaction.guild.create_text_channel(channel_name)
+                    akcja_info = f"\n\n✨ *(Wykonano: Automatycznie utworzyłem kanał tekstowy **{channel_name}**)*"
+                    full_text = full_text.split("[AKCJA:")[0] # Usuwamy znacznik z widoku wiadomości
+                except Exception as e:
+                    akcja_info = f"\n\n⚠️ *(Próbowałem utworzyć kanał, ale wystąpił błąd uprawnień: {e})*"
+
+            # Sprawdzamy czy AI zdecydowało się stworzyć kanał głosowy
+            elif "[AKCJA: GLOSOWY |" in full_text:
+                try:
+                    channel_name = full_text.split("[AKCJA: GLOSOWY |")[1].split("]")[0].strip()
+                    # Tworzymy kanał głosowy na serwerze!
+                    await interaction.guild.create_voice_channel(channel_name)
+                    akcja_info = f"\n\n✨ *(Wykonano: Automatycznie utworzyłem kanał głosowy **{channel_name}**)*"
+                    full_text = full_text.split("[AKCJA:")[0]
+                except Exception as e:
+                    akcja_info = f"\n\n⚠️ *(Próbowałem utworzyć kanał głosowy, ale wystąpił błąd uprawnień: {e})*"
+
+            await interaction.followup.send(f"🤖 **AI ({used_model}):** {full_text}{akcja_info}")
         else:
-            await interaction.followup.send("❌ Wszystkie dostępne modele AI odrzuciły zapytanie. Sprawdź ważność i uprawnienia swojego klucza API.")
+            await interaction.followup.send("❌ Wszystkie dostępne modele AI odrzuciły zapytanie.")
             
     except Exception as e:
-        await interaction.followup.send(f"❌ Wystąpił błąd krytyczny podczas komunikacji z AI: `{str(e)}`")
-
+        await interaction.followup.send(f"❌ Błąd AI: `{str(e)}`")
 # --- KOMENDA PRZERZUCANIA UŻYTKOWNIKÓW ---
 @bot.tree.command(name="przerzuc", description="Przerzuca wszystkich użytkowników z jednego kanału głosowego na drugi")
 @app_commands.checks.has_permissions(move_members=True, administrator=True)
