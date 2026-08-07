@@ -8,10 +8,12 @@ import threading
 import aiohttp
 from flask import Flask
 import json
-import openai
+import google.generativeai as genai
 
-# --- KONFIGURACJA OPENAI API ---
-openai.api_key = os.environ.get("OPENAI_API_KEY") # Klucz API najlepiej trzymać w zmiennych środowiskowych na Renderze!
+# --- KONFIGURACJA GOOGLE GEMINI API ---
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
+if GEMINI_KEY:
+    genai.configure(api_key=GEMINI_KEY)
 
 # --- KONFIGURACJA SERWERA WWW (FLASK) ---
 app = Flask(__name__)
@@ -179,8 +181,9 @@ def get_ticket_target(channel: discord.TextChannel, moderator: discord.Member):
             break
     return target
 
-# --- NARZĘDZIA DLA AI (FUNCTIONS) ---
+# --- NARZĘDZIA DLA AI ---
 async def ban_user_tool(interaction: discord.Interaction, user_id: int, reason: str = "Zbanowany przez AI"):
+    """Zbanuj użytkownika z serwera na podstawie ID"""
     try:
         user = await interaction.guild.fetch_member(user_id)
         await user.ban(reason=reason)
@@ -189,45 +192,13 @@ async def ban_user_tool(interaction: discord.Interaction, user_id: int, reason: 
         return f"Błąd banowania: {str(e)}"
 
 async def kick_user_tool(interaction: discord.Interaction, user_id: int, reason: str = "Wyrzucony przez AI"):
+    """Wyrzuć użytkownika z serwera na podstawie ID"""
     try:
         user = await interaction.guild.fetch_member(user_id)
         await user.kick(reason=reason)
         return f"Użytkownik {user.name} został wyrzucony."
     except Exception as e:
         return f"Błąd wyrzucania: {str(e)}"
-
-ai_tools_definition = [
-    {
-        "type": "function",
-        "function": {
-            "name": "ban_user_tool",
-            "description": "Zbanuj użytkownika z serwera na podstawie ID",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "user_id": {"type": "integer", "description": "ID użytkownika do zbanowania"},
-                    "reason": {"type": "string", "description": "Powód bana"}
-                },
-                "required": ["user_id"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "kick_user_tool",
-            "description": "Wyrzuć użytkownika z serwera na podstawie ID",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "user_id": {"type": "integer", "description": "ID użytkownika do wyrzucenia"},
-                    "reason": {"type": "string", "description": "Powód wyrzucenia"}
-                },
-                "required": ["user_id"]
-            }
-        }
-    }
-]
 
 # --- DYNAMICZNE MODALE I FORMULARZE ---
 
@@ -621,10 +592,9 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- NOWA KOMENDA /AI ZABEZPIECZONA TWOIMI UPRAWNIENIAMI ---
+# --- KOMENDA /AI ZABEZPIECZONA TWOIMI UPRAWNIENIAMI (OPARTA O GEMINI) ---
 @bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
 async def ai_command(interaction: discord.Interaction, prompt: str):
-    # Sprawdzamy czy użytkownik ma uprawnienia zarządu/szefa/rekrutera
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Nie masz uprawnień zarządu do używania asystenta AI!", ephemeral=True)
         return
@@ -632,34 +602,16 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     await interaction.response.defer()
 
     try:
-        response = openai.chat.completions.create(
-            model="gpt-4o",
-            messages=[
-                {"role": "system", "content": "Jesteś zaawansowanym asystentem administracyjnym tej gildii na Discordzie."},
-                {"role": "user", "content": prompt}
-            ],
-            tools=ai_tools_definition,
-            tool_choice="auto"
+        # Konfigurujemy model Gemini z dostępnymi narzędziami (funkcjami)
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-flash",
+            tools=[ban_user_tool, kick_user_tool]
         )
+        
+        chat = model.start_chat(enable_automatic_function_calling=True)
+        response = chat.send_message(f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}")
 
-        message = response.choices[0].message
-
-        if message.tool_calls:
-            tool_call = message.tool_calls[0]
-            func_name = tool_call.function.name
-            func_args = json.loads(tool_call.function.arguments)
-
-            if func_name == "ban_user_tool":
-                result = await ban_user_tool(interaction, **func_args)
-            elif func_name == "kick_user_tool":
-                result = await kick_user_tool(interaction, **func_args)
-            else:
-                result = "Nieznane narzędzie."
-
-            await interaction.followup.send(f"🤖 **AI:** {result}")
-        else:
-            reply_text = message.content if message.content else "Brak odpowiedzi od modelu."
-            await interaction.followup.send(f"🤖 **AI:** {reply_text}")
+        await interaction.followup.send(f"🤖 **AI:** {response.text}")
 
     except Exception as e:
         await interaction.followup.send(f"❌ Wystąpił błąd podczas komunikacji z AI: {str(e)}")
