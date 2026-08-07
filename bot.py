@@ -585,7 +585,7 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     try:
         genai.configure(api_key=gemini_key)
         
-        # Lista modeli do przetestowania po kolei (zapobiega błędom 404 przy aktualizacjach API)
+        # Testujemy nazwy modeli po kolei, aby uniknąć błędu 404
         models_to_try = [
             'gemini-1.5-flash', 
             'gemini-1.5-flash-001', 
@@ -611,7 +611,7 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
         if response and response.text:
             await interaction.followup.send(f"🤖 **AI:** {response.text}")
         else:
-            await interaction.followup.send(f"❌ Nie udało się połączyć z żadnym modelem AI. Ostatni błąd: {last_error}")
+            await interaction.followup.send(f"❌ Nie udało się połączyć z żadnym modelem AI. Ostatni błąd: `{last_error}`\n\n*Wskazówka: Upewnij się, że w Render kliknąłeś **Clear build cache & deploy**.*")
             
     except Exception as e:
         await interaction.followup.send(f"❌ Wystąpił błąd krytyczny podczas komunikacji z AI: {str(e)}")
