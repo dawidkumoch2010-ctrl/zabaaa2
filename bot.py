@@ -567,7 +567,7 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- KOMENDA /AI (BEZPOŚREDNIE ZAPYTANIE HTTP - OMIJA BŁĘDY BIBLIOTEKI) ---
+# --- KOMENDA /AI (UŻYWA STABILNEGO MODELU GEMINI-PRO NA V1) ---
 @bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
@@ -581,7 +581,7 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
         await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych Render!")
         return
 
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={gemini_key}"
     
     payload = {
         "contents": [{
