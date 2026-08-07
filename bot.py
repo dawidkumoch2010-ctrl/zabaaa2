@@ -576,6 +576,9 @@ async def check(interaction: discord.Interaction):
     await interaction.response.send_message(f"Czy bot ma Administratora? {perms.administrator}", ephemeral=True)
         return
 
+
+
+
     await interaction.response.defer()
 
     gemini_key = os.environ.get("GEMINI_API_KEY")
