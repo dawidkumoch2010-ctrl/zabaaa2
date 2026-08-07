@@ -84,7 +84,6 @@ def load_config():
         try:
             with open(CONFIG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
-                # Upewnij się, że klucze istnieją
                 for k, v in default_config.items():
                     if k not in data:
                         data[k] = v
@@ -179,7 +178,7 @@ def get_ticket_target(channel: discord.TextChannel, moderator: discord.Member):
             break
     return target
 
-# --- DYNAMICZNY FORMULARZ PODANIA I MODALE ---
+# --- DYNAMICZNE MODALE I FORMULARZE ---
 
 class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
     def __init__(self):
@@ -193,12 +192,11 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
             "5. Czy znasz kogoś?"
         ])
         
-        # Tworzymy pola dynamicznie na podstawie konfiguracji (maksymalnie 5)
         self.question_inputs = []
         for i, q_text in enumerate(pytania[:5]):
             style = discord.TextStyle.paragraph if i in [2, 3] else discord.TextStyle.short
             text_input = discord.ui.TextInput(
-                label=q_text[:45], # Discord ogranicza label do 45 znaków
+                label=q_text[:45],
                 placeholder="Wpisz odpowiedź...",
                 style=style,
                 required=True,
@@ -208,7 +206,6 @@ class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
             self.add_item(text_input)
 
     async def on_submit(self, interaction: discord.Interaction):
-        # Opcjonalna próba zmiany nicku z pierwszej odpowiedzi, jeśli to nick z MC
         try:
             if self.question_inputs:
                 await interaction.user.edit(nick=self.question_inputs[0].value.strip()[:32])
@@ -308,6 +305,47 @@ class RegulaminModal(discord.ui.Modal, title="⚙️ Konfiguracja Regulaminu"):
         save_config(cfg)
         await interaction.response.send_message("✅ Regulamin został pomyślnie zaktualizowany w bazie!", ephemeral=True)
 
+class UrlopModal(discord.ui.Modal, title="🌴 Zgłoszenie Urlopu"):
+    nick = discord.ui.TextInput(
+        label="1. Nick",
+        placeholder="Twój nick z Minecrafta...",
+        style=discord.TextStyle.short,
+        required=True,
+        max_length=50
+    )
+    termin = discord.ui.TextInput(
+        label="2. Od kiedy do kiedy",
+        placeholder="np. 10.08.2026 - 17.08.2026",
+        style=discord.TextStyle.short,
+        required=True,
+        max_length=100
+    )
+    powod = discord.ui.TextInput(
+        label="3. Dlaczego Cię nie będzie",
+        placeholder="Podaj powód nieobecności...",
+        style=discord.TextStyle.paragraph,
+        required=True,
+        max_length=500
+    )
+
+    async def on_submit(self, interaction: discord.Interaction):
+        embed = discord.Embed(
+            title="🌴 ZGŁOSZENIE URLOPU / NIEOBECNOŚCI",
+            description=f"**Kandydat / Członek:** {interaction.user.mention}",
+            color=discord.Color.orange(),
+            timestamp=datetime.now()
+        )
+        embed.set_thumbnail(url=interaction.user.display_avatar.url)
+        embed.add_field(name="➞ 1. Nick »", value=self.nick.value, inline=False)
+        embed.add_field(name="➞ 2. Od kiedy do kiedy »", value=self.termin.value, inline=False)
+        embed.add_field(name="➞ 3. Dlaczego Cię nie będzie »", value=self.powod.value, inline=False)
+
+        await interaction.channel.send(embed=embed)
+        await interaction.response.send_message("✅ Twoje zgłoszenie urlopu zostało pomyślnie wysłane!", ephemeral=True)
+        await send_log(interaction.guild, f"🌴 **URLOP:** Użytkownik {interaction.user.mention} zgłosił nieobecność ({self.termin.value}).")
+
+# --- WIDOKI I PRZYCISKI ---
+
 class PodanieTicketView(discord.ui.View):
     def __init__(self): super().__init__(timeout=None)
 
@@ -399,8 +437,6 @@ class VerifyView(discord.ui.View):
         if role: await interaction.user.add_roles(role)
         await interaction.response.send_message("✅ Nadano rangę do rekrutacji!", ephemeral=True)
 
-# --- WIDOK DLA STARYCH TICKETÓW ---
-
 class OldTicketsSelect(discord.ui.Select):
     def __init__(self, tickets):
         options = []
@@ -462,7 +498,7 @@ async def sync_prefix(ctx):
     synced = await bot.tree.sync()
     await ctx.send(f"✅ Zsynchronizowano {len(synced)} komend `/`!")
 
-# --- BEZPOŚREDNIE KOMENDY SLASH ---
+# --- KOMENDY SLASH ---
 
 @bot.tree.command(name="setup", description="Buduje pełny setup serwera (role, kanały, kategorie)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -492,7 +528,6 @@ async def cmd_setup(interaction: discord.Interaction):
     c_i = await guild.create_category("・ 『Informacje』 ・", overwrites=p_member)
     await guild.create_text_channel("📢-ogłoszenia", category=c_i)
     
-    # Kanał regulaminu
     ch_reg = await guild.create_text_channel("🚫-regulamin", category=c_i)
     cfg = load_config()
     embed_reg = discord.Embed(
@@ -574,7 +609,18 @@ async def cmd_clear(interaction: discord.Interaction):
     deleted = await interaction.channel.purge(limit=100)
     await interaction.followup.send(f"✅ Wyczyszczono {len(deleted)} wiadomości!", ephemeral=True)
 
-# --- POZOSTAŁE KOMENDY ---
+@bot.tree.command(name="urlop", description="Zgłoś swoją nieobecność / urlop w gildii")
+async def cmd_urlop(interaction: discord.Interaction):
+    has_czlonek = any(role.name == "「 」Członek" for role in interaction.user.roles)
+    is_admin_or_mgmt = interaction.user.guild_permissions.administrator or has_management_permission(interaction.user)
+    
+    if not (has_czlonek or is_admin_or_mgmt):
+        await interaction.response.send_message("❌ Ta komenda jest dostępna tylko dla zweryfikowanych członków z rangą **「 」Członek**!", ephemeral=True)
+        return
+
+    await interaction.response.send_modal(UrlopModal())
+
+# --- POZOSTAŁE KOMENDY ZARZĄDU I GRACZY ---
 
 @bot.tree.command(name="acc", description="Akceptuje podanie (1. wpisanie przenosi do Etapu 2, 2. wpisanie finalizuje)")
 async def acc(interaction: discord.Interaction):
@@ -599,7 +645,7 @@ async def acc(interaction: discord.Interaction):
 
         embed = discord.Embed(
             title="⚔️ PRZEJŚCIE DO ETAPU 2",
-            description="Jak ktoś będzie miał czas, to Ci odpisze w sprawie duelu. Gdy ci napiszą, udaj się na kanał głosowy: <#1494791287533076603> lub <#1494791290569621685>",
+            description="Jak ktoś będzie miał czas, to Ci odpisze w sprawie duelu. Gdy ci napiszą, udaj się na kanał głosowy rekrutacyjny.",
             color=discord.Color.orange(),
             timestamp=datetime.now()
         )
@@ -626,9 +672,9 @@ async def acc(interaction: discord.Interaction):
             embed.add_field(name="⚠️ Uwaga:", value="Nie udało się wysłać transkryptu na Twój DM (masz zablokowane wiadomości prywatne).")
 
         await interaction.response.send_message(embed=embed)
-        await send_log(interaction.guild, f"✅ **AKCEPTACJA KOŃCOWA:** Użytkownik {target.mention} przyjęty przez {interaction.user.mention}. Historia wysłana na DM.")
+        await send_log(interaction.guild, f"✅ **AKCEPTACJA KOŃCOWA:** Użytkownik {target.mention} przyjęty przez {interaction.user.mention}.")
 
-@bot.tree.command(name="odrz", description="Odrzuca kandydata, daje mu przerwe 1d (timeout) i przesyła historię na DM")
+@bot.tree.command(name="odrz", description="Odrzuca kandydata, daje mu przerwę 1d (timeout) i przesyła historię na DM")
 async def odrz(interaction: discord.Interaction):
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Brak uprawnień!", ephemeral=True)
@@ -639,7 +685,6 @@ async def odrz(interaction: discord.Interaction):
         await interaction.response.send_message("❌ Nie znaleziono kandydata na tym kanale!", ephemeral=True)
         return
 
-    # NAŁOŻENIE TIMEOUTU NA 1 DZIEŃ
     try:
         await target.timeout(timedelta(days=1), reason=f"Odrzucone podanie rekrutacyjne przez {interaction.user.display_name}")
         timeout_status = "✅ Nałożono 1-dniową przerwę (timeout) na gracza."
@@ -660,10 +705,10 @@ async def odrz(interaction: discord.Interaction):
         timestamp=datetime.now()
     )
     if not success:
-        embed.add_field(name="⚠️ Uwaga:", value="Nie udało się wysłać transkryptu na DM gracza (ma zablokowane wiadomości prywatne).")
+        embed.add_field(name="⚠️ Uwaga:", value="Nie udało się wysłać transkryptu na DM gracza.")
 
     await interaction.response.send_message(embed=embed)
-    await send_log(interaction.guild, f"❌ **ODRZUCENIE:** Kandydat {target.mention} odrzucony przez {interaction.user.mention} (zastosowano 1d timeout).")
+    await send_log(interaction.guild, f"❌ **ODRZUCENIE:** Kandydat {target.mention} odrzucony przez {interaction.user.mention}.")
 
 @bot.tree.command(name="zamknij", description="Zamyka, archiwizuje i usuwa obecny ticket")
 async def zamknij(interaction: discord.Interaction):
@@ -692,7 +737,7 @@ async def zamknij(interaction: discord.Interaction):
     await asyncio.sleep(5)
     await interaction.channel.delete()
 
-@bot.tree.command(name="stareticekty", description="Pokazuje listę dawnych ticketów do wysłania na PV (z nickami graczy)")
+@bot.tree.command(name="stareticekty", description="Pokazuje listę dawnych ticketów do wysłania na PV")
 async def stareticekty(interaction: discord.Interaction):
     if not has_management_permission(interaction.user):
         await interaction.response.send_message("❌ Brak uprawnień!", ephemeral=True)
