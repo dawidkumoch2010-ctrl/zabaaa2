@@ -181,25 +181,6 @@ def get_ticket_target(channel: discord.TextChannel, moderator: discord.Member):
             break
     return target
 
-# --- NARZĘDZIA DLA AI ---
-async def ban_user_tool(interaction: discord.Interaction, user_id: int, reason: str = "Zbanowany przez AI"):
-    """Zbanuj użytkownika z serwera na podstawie ID"""
-    try:
-        user = await interaction.guild.fetch_member(user_id)
-        await user.ban(reason=reason)
-        return f"Użytkownik {user.name} został pomyślnie zbanowany."
-    except Exception as e:
-        return f"Błąd banowania: {str(e)}"
-
-async def kick_user_tool(interaction: discord.Interaction, user_id: int, reason: str = "Wyrzucony przez AI"):
-    """Wyrzuć użytkownika z serwera na podstawie ID"""
-    try:
-        user = await interaction.guild.fetch_member(user_id)
-        await user.kick(reason=reason)
-        return f"Użytkownik {user.name} został wyrzucony."
-    except Exception as e:
-        return f"Błąd wyrzucania: {str(e)}"
-
 # --- DYNAMICZNE MODALE I FORMULARZE ---
 
 class PodanieModal(discord.ui.Modal, title="📝 Formularz Podania"):
@@ -602,14 +583,8 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     await interaction.response.defer()
 
     try:
-        # Konfigurujemy model Gemini z dostępnymi narzędziami (funkcjami)
-        model = genai.GenerativeModel(
-            model_name="gemini-1.5-flash",
-            tools=[ban_user_tool, kick_user_tool]
-        )
-        
-        chat = model.start_chat(enable_automatic_function_calling=True)
-        response = chat.send_message(f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}")
+        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+        response = model.generate_content(f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}")
 
         await interaction.followup.send(f"🤖 **AI:** {response.text}")
 
