@@ -568,7 +568,7 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- KOMENDA /AI Z MECHANIZMEM FALLBACK (ZABEZPIECZENIE PRZED 404) ---
+# --- KOMENDA /AI Z DYNAMICZNYM POBIERANIEM MODELU ---
 @bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
@@ -585,36 +585,28 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     try:
         genai.configure(api_key=gemini_key)
         
-        # Testujemy nazwy modeli po kolei, aby uniknąć błędu 404
-        models_to_try = [
-            'gemini-1.5-flash', 
-            'gemini-1.5-flash-001', 
-            'gemini-1.5-pro', 
-            'gemini-pro'
-        ]
+        # Automatyczne pobieranie pierwszego dostępnego modelu
+        selected_model_name = None
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                selected_model_name = m.name
+                break
         
-        response = None
-        last_error = None
-        
-        for model_name in models_to_try:
-            try:
-                model = genai.GenerativeModel(model_name)
-                response = model.generate_content(
-                    f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}"
-                )
-                if response and response.text:
-                    break
-            except Exception as err:
-                last_error = err
-                continue
+        if not selected_model_name:
+            selected_model_name = 'gemini-1.5-flash'
+
+        model = genai.GenerativeModel(selected_model_name)
+        response = model.generate_content(
+            f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}"
+        )
         
         if response and response.text:
             await interaction.followup.send(f"🤖 **AI:** {response.text}")
         else:
-            await interaction.followup.send(f"❌ Nie udało się połączyć z żadnym modelem AI. Ostatni błąd: `{last_error}`\n\n*Wskazówka: Upewnij się, że w Render kliknąłeś **Clear build cache & deploy**.*")
+            await interaction.followup.send("❌ Model AI nie zwrócił żadnej odpowiedzi.")
             
     except Exception as e:
-        await interaction.followup.send(f"❌ Wystąpił błąd krytyczny podczas komunikacji z AI: {str(e)}")
+        await interaction.followup.send(f"❌ Wystąpił błąd krytyczny podczas komunikacji z AI: `{str(e)}`")
 
 # --- POZOSTAŁE KOMENDY ZARZĄDU ---
 
