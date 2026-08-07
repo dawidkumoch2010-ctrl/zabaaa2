@@ -24,14 +24,26 @@ def run_flask():
 intents = discord.Intents.all()
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# --- FUNKCJA DO POBIERANIA HISTORII ---
+# --- FUNKCJA DO POBIERANIA HISTORII WRAZ Z PODANIEM ---
 async def send_transcript_dm(member: discord.Member, channel: discord.TextChannel):
-    messages = []
+    transcript_lines = []
     async for message in channel.history(limit=100, oldest_first=True):
-        if not message.author.bot:
-            messages.append(f"**{message.author.display_name}**: {message.content}")
+        # Sprawdzanie czy wiadomość zawiera embed z podaniem
+        if message.embeds:
+            for embed in message.embeds:
+                if embed.title and "PODANIE REKRUTACYJNE" in embed.title:
+                    transcript_lines.append(f"📋 **{embed.title}**")
+                    if embed.description:
+                        transcript_lines.append(embed.description)
+                    for field in embed.fields:
+                        transcript_lines.append(f"• **{field.name}** {field.value}")
+                    transcript_lines.append("-" * 30)
+
+        # Zwykłe wiadomości tekstowe od użytkowników
+        if not message.author.bot and message.content:
+            transcript_lines.append(f"**{message.author.display_name}**: {message.content}")
     
-    transcript_text = "\n".join(messages) if messages else "Brak treści do wyświetlenia."
+    transcript_text = "\n".join(transcript_lines) if transcript_lines else "Brak treści do wyświetlenia."
     
     if len(transcript_text) > 4000:
         transcript_text = transcript_text[-4000:] 
