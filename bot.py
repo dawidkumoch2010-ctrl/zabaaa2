@@ -262,7 +262,7 @@ async def sync_prefix(ctx):
     synced = await bot.tree.sync()
     await ctx.send(f"✅ Zsynchronizowano {len(synced)} komend `/`!")
 
-# --- BEZPOŚREDNIE KOMENDY SLASH (ZASTĄPIENIE DASHBOARDU) ---
+# --- BEZPOŚREDNIE KOMENDY SLASH ---
 
 @bot.tree.command(name="setup", description="Buduje pełny setup serwera (role, kanały, kategorie)")
 @app_commands.checks.has_permissions(administrator=True)
@@ -336,16 +336,6 @@ async def cmd_clear(interaction: discord.Interaction):
     await interaction.response.defer(ephemeral=True)
     deleted = await interaction.channel.purge(limit=100)
     await interaction.followup.send(f"✅ Wyczyszczono {len(deleted)} wiadomości!", ephemeral=True)
-
-@bot.tree.command(name="nuke", description="Usuwa wszystkie kanały na serwerie (tylko właściciel)")
-async def cmd_nuke(interaction: discord.Interaction):
-    if interaction.user != interaction.guild.owner:
-        await interaction.response.send_message("❌ Tylko właściciel serwera może użyć NUKE!", ephemeral=True)
-        return
-    await interaction.response.defer(ephemeral=True)
-    for c in interaction.guild.channels:
-        await c.delete()
-    await interaction.guild.create_text_channel("nuke-done")
 
 # --- POZOSTAŁE KOMENDY ---
 
