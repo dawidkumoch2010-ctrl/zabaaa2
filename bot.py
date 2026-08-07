@@ -8,12 +8,6 @@ import threading
 import aiohttp
 from flask import Flask
 import json
-import google.generativeai as genai
-
-# --- KONFIGURACJA GOOGLE GEMINI API ---
-GEMINI_KEY = os.environ.get("GEMINI_API_KEY")
-if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
 
 # --- KONFIGURACJA SERWERA WWW (FLASK) ---
 app = Flask(__name__)
@@ -573,7 +567,7 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- KOMENDA /AI (POPRAWIONY MODEL NA GEMINI-1.5-FLASH) ---
+# --- KOMENDA /AI (BEZPOŚREDNIE ZAPYTANIE HTTP - OMIJA BŁĘDY BIBLIOTEKI) ---
 @bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
@@ -582,19 +576,37 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
 
     await interaction.response.defer()
 
-    try:
-        safety_settings = [
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    if not gemini_key:
+        await interaction.followup.send("❌ Brak klucza GEMINI_API_KEY w zmiennych środowiskowych Render!")
+        return
+
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+    
+    payload = {
+        "contents": [{
+            "parts": [{
+                "text": f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}"
+            }]
+        }],
+        "safetySettings": [
             {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
             {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
-            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"}
         ]
-        
-        model = genai.GenerativeModel(model_name="gemini-1.5-flash", safety_settings=safety_settings)
-        response = model.generate_content(f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}")
+    }
 
-        await interaction.followup.send(f"🤖 **AI:** {response.text}")
-
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    ai_text = data["candidates"][0]["content"]["parts"][0]["text"]
+                    await interaction.followup.send(f"🤖 **AI:** {ai_text}")
+                else:
+                    err_text = await resp.text()
+                    await interaction.followup.send(f"❌ Błąd API Google ({resp.status}): {err_text[:200]}")
     except Exception as e:
         await interaction.followup.send(f"❌ Wystąpił błąd podczas komunikacji z AI: {str(e)}")
 
