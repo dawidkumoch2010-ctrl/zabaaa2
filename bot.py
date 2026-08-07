@@ -569,10 +569,11 @@ async def cmd_urlop(interaction: discord.Interaction):
     await interaction.response.send_modal(UrlopModal())
 
 # --- NAPRAWIONA KOMENDA /AI Z AKTUALNYMI MODELAMI ---
-@bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
-async def ai_command(interaction: discord.Interaction, prompt: str):
-    if not has_management_permission(interaction.user):
-        await interaction.response.send_message("❌ Nie masz uprawnień zarządu do używania asystenta AI!", ephemeral=True)
+@bot.tree.command(name="check", description="Sprawdza uprawnienia bota")
+async def check(interaction: discord.Interaction):
+    bot_member = interaction.guild.get_member(bot.user.id)
+    perms = bot_member.guild_permissions
+    await interaction.response.send_message(f"Czy bot ma Administratora? {perms.administrator}", ephemeral=True)
         return
 
     await interaction.response.defer()
