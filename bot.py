@@ -574,10 +574,7 @@ async def check(interaction: discord.Interaction):
     bot_member = interaction.guild.get_member(bot.user.id)
     perms = bot_member.guild_permissions
     await interaction.response.send_message(f"Czy bot ma Administratora? {perms.administrator}", ephemeral=True)
-        return
-
-
-
+    return
 
     await interaction.response.defer()
 
