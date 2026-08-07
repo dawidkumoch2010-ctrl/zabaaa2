@@ -573,7 +573,7 @@ async def cmd_urlop(interaction: discord.Interaction):
         return
     await interaction.response.send_modal(UrlopModal())
 
-# --- KOMENDA /AI ZABEZPIECZONA TWOIMI UPRAWNIENIAMI (OPARTA O GEMINI) ---
+# --- KOMENDA /AI ZABEZPIECZONA I ODBLOKOWANA ---
 @bot.tree.command(name="ai", description="Wydaj polecenie lub porozmawiaj z inteligentnym asystentem bota")
 async def ai_command(interaction: discord.Interaction, prompt: str):
     if not has_management_permission(interaction.user):
@@ -583,7 +583,15 @@ async def ai_command(interaction: discord.Interaction, prompt: str):
     await interaction.response.defer()
 
     try:
-        model = genai.GenerativeModel(model_name="gemini-1.5-flash")
+        # Ustawienia bezpieczeństwa na BLOCK_NONE, aby AI nie blokowało odpowiedzi o banowaniu/kickowaniu
+        safety_settings = [
+            {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+            {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+        ]
+        
+        model = genai.GenerativeModel(model_name="gemini-pro", safety_settings=safety_settings)
         response = model.generate_content(f"Jesteś zaawansowanym asystentem administracyjnym gildii na Discordzie. Użytkownik napisał: {prompt}")
 
         await interaction.followup.send(f"🤖 **AI:** {response.text}")
